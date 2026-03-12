@@ -1,0 +1,148 @@
+{
+  "artifacts": [
+    {
+      "artifact_type": "SMS",
+      "expected_count": 50,
+      "parser": "SMS Parser",
+      "sample_verification": [
+        {
+          "actor": "+919800000000",
+          "details_contains": {
+            "body": "Hello, this is a test message",
+            "direction": "RECEIVED"
+          },
+          "timestamp_utc": 1700000000000
+        },
+        {
+          "actor": "+919800000003",
+          "details_contains": {
+            "body": "Confirmed, will be there",
+            "direction": "RECEIVED"
+          },
+          "timestamp_utc": 1700000180000
+        }
+      ],
+      "source_file": "data/com.android.providers.telephony/databases/mmssms.db"
+    },
+    {
+      "artifact_type": "CONTACT",
+      "expected_count": 25,
+      "parser": "Contacts Parser",
+      "sample_verification": [
+        {
+          "actor": "+919800000000",
+          "details_contains": {
+            "name": "Rajesh Kumar",
+            "number": "+919800000000"
+          }
+        }
+      ],
+      "source_file": "data/com.android.providers.contacts/databases/contacts2.db"
+    },
+    {
+      "artifact_type": "CALL_LOG",
+      "expected_count": 60,
+      "parser": "Call Log Parser",
+      "sample_verification": [
+        {
+          "actor": "+919800000000",
+          "details_contains": {
+            "duration_sec": 0,
+            "type": "INCOMING"
+          },
+          "timestamp_utc": 1700001000000
+        }
+      ],
+      "source_file": "data/com.android.providers.contacts/databases/contacts2.db"
+    },
+    {
+      "artifact_type": "WEB_HISTORY",
+      "expected_count": 30,
+      "parser": "Chrome History Parser",
+      "sample_verification": [
+        {
+          "actor": "DEVICE",
+          "details_contains": {
+            "title": "python - Google Search",
+            "url": "https://www.google.com/search?q=python"
+          }
+        }
+      ],
+      "source_file": "data/com.android.chrome/app_chrome/Default/History"
+    },
+    {
+      "artifact_type": "INSTALLED_APP",
+      "expected_count": 20,
+      "parser": "Installed Apps Parser",
+      "sample_verification": [
+        {
+          "actor": "DEVICE",
+          "details_contains": {
+            "package": "com.whatsapp",
+            "path": "/data/app/com.whatsapp"
+          }
+        }
+      ],
+      "source_file": "data/system/packages.xml"
+    },
+    {
+      "artifact_type": "ACCOUNT",
+      "expected_count": 8,
+      "parser": "Accounts Parser",
+      "sample_verification": [
+        {
+          "actor": "DEVICE",
+          "details_contains": {
+            "name": "user@gmail.com",
+            "type": "com.google"
+          }
+        }
+      ],
+      "source_file": "data/system_ce/0/accounts.db"
+    },
+    {
+      "artifact_type": "ENCRYPTED_DB",
+      "expected_count": 1,
+      "parser": "WhatsApp Detector",
+      "sample_verification": [
+        {
+          "actor": "DEVICE",
+          "details_contains": {
+            "filename": "msgstore.db"
+          }
+        }
+      ],
+      "source_file": "data/com.whatsapp/databases/msgstore.db"
+    },
+    {
+      "artifact_type": "MEDIA",
+      "expected_count": 55,
+      "parser": "Media Scanner",
+      "sample_verification": [
+        {
+          "actor": "DEVICE",
+          "details_contains": {
+            "filename": "IMG_20231114_120000.jpg"
+          }
+        }
+      ],
+      "source_file": "media/"
+    }
+  ],
+  "created_by": "golden_dataset_generator_v2",
+  "dataset_version": "2.0.0",
+  "description": "Synthetic Android filesystem with 250+ artifacts for XtractR validation",
+  "negative_assertions": [
+    {
+      "artifact_type": "TELEGRAM_MSG",
+      "description": "No Telegram artifacts (no DB present)",
+      "expected_count": 0
+    },
+    {
+      "artifact_type": "MEDIA",
+      "description": "Text files should not be detected as media",
+      "file_should_not_match": "document.txt"
+    }
+  ],
+  "total_expected_artifacts": 249
+}

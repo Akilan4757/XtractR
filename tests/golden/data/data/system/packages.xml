@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<packages>
+    <package name="com.android.chrome" codePath="/system/app/Chrome" />
+    <package name="com.whatsapp" codePath="/data/app/com.whatsapp" />
+    <package name="com.google.android.gm" codePath="/system/app/Gmail" />
+    <package name="com.android.settings" codePath="/system/app/Settings" />
+    <package name="com.google.android.apps.maps" codePath="/system/app/Maps" />
+    <package name="com.android.camera2" codePath="/system/app/Camera" />
+    <package name="com.google.android.youtube" codePath="/system/app/YouTube" />
+    <package name="com.android.contacts" codePath="/system/app/Contacts" />
+    <package name="com.android.phone" codePath="/system/app/Phone" />
+    <package name="com.instagram.android" codePath="/data/app/Instagram" />
+    <package name="com.facebook.katana" codePath="/data/app/Facebook" />
+    <package name="com.twitter.android" codePath="/data/app/Twitter" />
+    <package name="org.telegram.messenger" codePath="/data/app/Telegram" />
+    <package name="com.google.android.apps.photos" codePath="/system/app/Photos" />
+    <package name="com.android.vending" codePath="/system/app/PlayStore" />
+    <package name="com.flipkart.android" codePath="/data/app/Flipkart" />
+    <package name="com.amazon.mShop.android" codePath="/data/app/Amazon" />
+    <package name="com.google.android.apps.docs" codePath="/system/app/Drive" />
+    <package name="com.paytm.android" codePath="/data/app/Paytm" />
+    <package name="net.one97.paytm.recharge" codePath="/data/app/PaytmRecharge" />
+</packages>

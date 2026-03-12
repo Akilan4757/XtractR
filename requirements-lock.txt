@@ -1,0 +1,14 @@
+# XtractR Pinned Dependencies (Reproducible Builds)
+# Generated for forensic-grade determinism.
+# Pin exact versions to prevent supply-chain drift.
+
+# Core Forensics (optional — only needed for disk image ingestion)
+# pytsk3==20240802
+# libewf-python==20240506
+
+# Cryptography & Security
+cryptography==45.0.7
+
+# Testing
+pytest==8.4.2
+pytest-cov==6.1.1

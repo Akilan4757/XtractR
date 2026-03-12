@@ -1,0 +1,77 @@
+# ============================================
+# XtractR Forensic Platform — .gitignore
+# ============================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ---- Virtual Environments ----
+.venv/
+venv/
+ENV/
+
+# ---- Test & Cache ----
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# ---- Case Output Data ----
+# Case directories contain sensitive forensic data, private keys, and large databases.
+# NEVER commit case output.
+case01/
+case02/
+cases/
+output/
+exports/
+
+# ---- Cryptographic Keys & Signatures (root level) ----
+*.pem
+*.pub
+*.crt
+*.sig
+*.tsr
+
+# ---- Test Artifacts (root level) ----
+test.db
+test_db_close.py
+run_verify_test.py
+run_verify_no_tsa.sh
+
+# ---- Generated / One-off Files ----
+WORKS OF CODE.md
+XtractR (copy 1).sh
+
+# ---- IDE & Editor ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- OS Junk ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs ----
+*.log
+
+# ---- Disk Images ----
+*.img
+*.E01
+*.raw
+
+# ---- Env / Secrets ----
+.env
+
+# ---- Validation Reports (generated) ----
+tests/validation_report.json
+tests/validation_report_pretty.json
