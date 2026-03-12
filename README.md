@@ -17,11 +17,6 @@
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black" />
 </p>
 
----
-
-> ⚠️ **Research Project** — This project is currently in active research and development. Not production-ready.
-
----
 
 ## What is XtractR?
 
