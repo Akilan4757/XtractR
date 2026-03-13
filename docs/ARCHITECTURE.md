@@ -1,5 +1,5 @@
 # SECTION 1 — FULL MICRO-LEVEL ASCII ARCHITECTURAL DIAGRAM
-
+```
 +-------------------------------------------------------------------------------------------------------------------+
 |                                              XTRACTR FORENSIC PLATFORM ARCHITECTURE                               |
 +-------------------------------------------------------------------------------------------------------------------+
@@ -60,7 +60,7 @@
 |         |--> Applies public key verify() to digital signatures. Check TSA presence.                               |
 |         +--> Emits Exit Code 0 (Green) or Exit Code > 0 (Red).                                                    |
 +-------------------------------------------------------------------------------------------------------------------+
-
+```
 # SECTION 2 — EXECUTION FLOW WALKTHROUGH
 
 1. Initialization Phase (`main.py init`):
@@ -100,7 +100,7 @@
    - Re-compiles all Merkle Trees. Re-hashes all evidence. Validates signatures using the X.509 public key extract.
 
 # SECTION 3 — CRYPTOGRAPHIC DEPENDENCY GRAPH
-
+```
 [ Investigator Passphrase ] 
          |
          v
@@ -115,7 +115,7 @@
                                (Merkle Leaf) [ SHA-256(Artifact) ]   [ SHA-256(Log Entry ^ Prev_Hash) ]
                                                                                 |
                                                                          [ SHA-256(Source Code) ] (Measured Boot Entry)
-                                                                         
+```                                                              
 Tamper Cascades:
 - Changing a DB row changes `this_event_hash`, fracturing the `prev_event_hash` linkage of the NEXT event, failing Log Root verification.
 - Changing an evidence file fails the pre-export TOCTOU physical re-hash. Post-export, it fails the Evidence Root recalculation.
@@ -139,3 +139,4 @@ ADVERSARY CLASSES MITIGATED:
 - Malicious Modifiers (Database or Physical Evidence Swapping)
 - Plugin Injection Attacks (Mid-run Script Edits)
 - Chronological Spoofing (OS Timezone alteration)
+
