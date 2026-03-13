@@ -1,5 +1,5 @@
 # SECTION 1 — FULL MICRO-LEVEL ASCII ARCHITECTURAL DIAGRAM
-
+```
 +-------------------------------------------------------------------------------------------------------------------+
 |                                              XTRACTR FORENSIC PLATFORM ARCHITECTURE                               |
 +-------------------------------------------------------------------------------------------------------------------+
@@ -60,7 +60,7 @@
 |         |--> Applies public key verify() to digital signatures. Check TSA presence.                               |
 |         +--> Emits Exit Code 0 (Green) or Exit Code > 0 (Red).                                                    |
 +-------------------------------------------------------------------------------------------------------------------+
-
+```
 # SECTION 2 — EXECUTION FLOW WALKTHROUGH
 
 1. Initialization Phase (`main.py init`):
@@ -139,3 +139,4 @@ ADVERSARY CLASSES MITIGATED:
 - Malicious Modifiers (Database or Physical Evidence Swapping)
 - Plugin Injection Attacks (Mid-run Script Edits)
 - Chronological Spoofing (OS Timezone alteration)
+
