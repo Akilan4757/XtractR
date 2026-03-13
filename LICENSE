@@ -1,37 +1,42 @@
-XtractR — Proprietary License
+XtractR Research License
 Copyright (c) 2026 Akilan. All rights reserved.
 
-1. GRANT OF LICENSE
-   You are granted a limited, non-exclusive, non-transferable, revocable
-   license to use this software solely for:
-   (a) Personal, non-commercial use
-   (b) Academic or independent research purposes
+Grant of License
+Permission is granted to any individual or organization to use, download, and copy this software solely for the following purposes:
 
-2. RESTRICTIONS
-   You may NOT, without prior written permission from the copyright holder:
-   (a) Copy, reproduce, or duplicate this software or any substantial part of it
-   (b) Modify, adapt, translate, or create derivative works
-   (c) Distribute, sublicense, lease, rent, or lend this software to any third party
-   (d) Use this software for any commercial purpose
-   (e) Reverse engineer, decompile, or disassemble this software
-   (f) Remove or alter any proprietary notices, labels, or marks
+a. Personal non commercial use
+b. Academic research and study
+c. Security research and evaluation
 
-3. OWNERSHIP
-   This software and all copies thereof are proprietary to and the property
-   of the copyright holder. All rights not expressly granted herein are
-   reserved by the copyright holder.
+You may copy the software only as necessary to download, install, run, and study the software for the permitted purposes described above.
 
-4. NO WARRANTY
-   THIS SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
-   THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY.
+Modification for Research
+Users may modify the software for personal, academic, or security research purposes. Modified versions must remain private and may not be distributed without prior written permission from the copyright holder.
 
-5. TERMINATION
-   This license is effective until terminated. It will terminate automatically
-   without notice if you fail to comply with any term of this license. Upon
-   termination, you must destroy all copies of the software in your possession.
+Restrictions
+Without prior written permission from the copyright holder, you may not:
 
-6. CONTACT
-   For licensing inquiries, commercial use, or permissions:
-   GitHub: https://github.com/Akilan4757
+a. Distribute or publish the software or modified versions of the software
+b. Use the software or any portion of the software for commercial purposes
+c. Sell, license, sublicense, lease, or otherwise monetize the software
+d. Remove, alter, or obscure any copyright or license notices included in the software
+
+Ownership
+The software and all intellectual property rights associated with it remain the exclusive property of the copyright holder. This license grants limited usage rights and does not transfer ownership.
+
+No Warranty
+The software is provided as is, without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non infringement.
+
+In no event shall the copyright holder be liable for any claim, damages, or other liability arising from the use of the software.
+
+Termination
+This license is effective until terminated. If you violate any terms of this license, your rights under this license will automatically terminate. Upon termination, you must cease all use of the software and destroy all copies in your possession.
+
+Governing Law
+This license shall be governed by and interpreted in accordance with the laws of India.
+
+Contact
+For commercial licensing, redistribution permissions, or other inquiries, contact the author through:
+
+GitHub
+https://github.com/Akilan4757
