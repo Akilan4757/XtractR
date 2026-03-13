@@ -125,7 +125,7 @@ Tamper Cascades:
 
 WHAT IS GUARANTEED:
 - Ledger Immutability: Post-ingest event sequence modifications are cryptographically mathematically exposed.
-- Source Identity Authentication: Cryptographic signatures cryptographically bind output artifacts to the investigator's Passphrase/X.509 identity.
+- Source Identity Authentication: Cryptographic signatures bind output artifacts to the defined Passphrase/X.509 configuration.
 - Time Objectivity: Integration with RFC 3161 completely disables local OS timestamp reliance for the final chronological seal.
 
 WHAT IS NOT GUARANTEED:

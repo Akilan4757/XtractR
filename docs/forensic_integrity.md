@@ -38,7 +38,7 @@ This seal ensures that **any modification** to any output artifact will invalida
 
 ## 4. Independent Verification
 
-The `verify_seal.py` tool performs completely independent verification:
+The `xtractr_verify.py` tool performs completely independent verification:
 
 1. Re-reads the manifest
 2. Re-hashes every extracted artifact file
@@ -50,7 +50,7 @@ This tool uses no shared code with the pipeline, eliminating single-point-of-fai
 
 ## 5. Chain of Custody Log
 
-Every significant event is appended to `custody.log` in the case directory:
+Every significant event is appended to `case_custody_ledger.jsonl` in the case directory:
 
 ```
 TIMESTAMP | EVENT_TYPE | DETAILS | SRC:hash | DST:hash

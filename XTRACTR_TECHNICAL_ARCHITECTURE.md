@@ -3,7 +3,7 @@
 **Version:** 1.1.0  
 **Schema Version:** 3.0.0  
 **Classification:** Internal Technical Reference  
-**Purpose:** Product Design Presentation — System Architecture Explanation
+**Purpose:** Internal Technical Reference — System Architecture Specification
 
 ---
 
@@ -23,7 +23,6 @@
 12. [Artifact Database Structure](#12-artifact-database-structure)
 13. [Evidence Verification Process](#13-evidence-verification-process)
 14. [Report Generation System](#14-report-generation-system)
-15. [Presentation Notes](#15-presentation-notes)
 
 ---
 
@@ -958,51 +957,3 @@ The CSS includes print-specific rules:
 - Search inputs and pagination controls are hidden.
 - Content respects `page-break-inside: avoid`.
 
----
-
-## 15. Presentation Notes
-
-This section provides guidance for presenting the XTRACTR system to a non-technical audience.
-
-### How to Explain the Pipeline
-
-Use the following simplified narrative:
-
-> "XTRACTR works like a forensic assembly line. A device dump enters the system. The first thing we do is fingerprint every single file — we take a mathematical snapshot that can never be faked. Then our parser plugins go to work: each one knows how to read a specific type of data — text messages, call logs, browser history, photos, WhatsApp chats. Each parser runs in its own isolated sandbox so one bad file can't crash the system. Every artifact gets a timestamp, an identity tag, and a hash. Then we build a timeline that shows everything in chronological order — calls, messages, location data — all stitched together. The whole process is recorded in a tamper-proof ledger where each entry is mathematically chained to the one before it. At the end, we seal everything with a Merkle tree — a cryptographic structure that collapses thousands of hashes into a single root hash. We sign that root with the investigator's private key. If anyone changes even one character in one text message, the entire hash chain breaks and verification fails."
-
-### Key Technical Terms to Know
-
-| Term               | Simple Explanation                                          |
-|--------------------|-------------------------------------------------------------|
-| SHA-256            | A mathematical function that produces a unique 64-character fingerprint for any piece of data. Change one bit and the fingerprint changes completely. |
-| Merkle Tree        | A way to combine many fingerprints into one master fingerprint. If any single fingerprint at the bottom changes, the master fingerprint at the top changes. |
-| Ed25519            | A modern digital signature algorithm. The investigator signs the master fingerprint with their private key. Anyone with the public key can verify the signature. |
-| Hash Chain         | Each entry in the audit log includes a fingerprint of the previous entry. This creates an unbreakable chain — you cannot insert, delete, or modify an entry without breaking the chain. |
-| TOCTOU Guard       | "Time of Check, Time of Use." Before sealing, the system re-verifies every evidence file to make sure nothing changed between the initial scan and the final export. |
-| TSA (RFC 3161)     | An external trusted clock that proves when the seal was created, preventing claims that the investigator manipulated their computer's clock. |
-| VFS                | Virtual Filesystem. An abstraction that lets the system read evidence from folders, ZIP files, or raw disk images using the same code. |
-| Canonical JSON     | A strict way of writing JSON so that the same data always produces the exact same bytes, which produces the same hash. |
-
-### What Makes XTRACTR Forensically Sound
-
-When presenting the system's integrity guarantees, emphasize these properties:
-
-1. **Determinism:** Running the same pipeline on the same evidence always produces the same hashes and the same report.
-2. **Independence:** The verifier (`xtractr_verify.py`) is a standalone script with zero shared code with the core system. A third party can run it independently.
-3. **Dual-write custody log:** Every action is recorded in both SQLite and an append-only text file. Tampering with one is detected by the other.
-4. **Measured boot:** The hash of the tool itself is recorded before any evidence processing begins.
-5. **Process isolation:** Each parser plugin runs in a separate operating system process with enforced memory and time limits.
-6. **External time anchoring:** An RFC 3161 timestamp from a trusted authority proves when the analysis occurred.
-7. **Single-file report:** The HTML report contains all data and code inline, so it cannot be altered by removing or replacing external files.
-
-### Suggested Slide Structure
-
-1. **Title:** XTRACTR — Forensic Evidence Platform
-2. **Pipeline Overview:** Show the seven-phase flow diagram.
-3. **Evidence Acquisition:** Explain VFS abstraction and baseline fingerprinting.
-4. **Artifact Parsing:** Show the list of 13 parser plugins and the sandboxing model.
-5. **Integrity Architecture:** Show the Merkle tree diagram (evidence root + artifact root + log root → system root → Ed25519 signature).
-6. **The Seal:** Walk through `seal.json` fields and explain what each one proves.
-7. **Verification:** Explain the independent verifier and the 12-step verification process.
-8. **Dashboard Demo:** Show a screenshot or live demo of the HTML report.
-9. **Forensic Integrity:** List the seven properties above.
