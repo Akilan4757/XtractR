@@ -54,18 +54,18 @@ Every action is logged in an immutable Merkle-chained custody ledger. Every evid
 │     ├── scan ──────► SHA-256 Baseline of All Evidence Files     │
 │     ├── run-plugins► Zero-Trust Plugin Execution                │
 │     │                  ├── SMS Parser                           │
-│     │                  ├── Call Log Parser                       │
+│     │                  ├── Call Log Parser                      │
 │     │                  ├── Contacts Parser                      │
-│     │                  ├── Chrome History Parser                 │
-│     │                  ├── WhatsApp / Telegram / Instagram       │
+│     │                  ├── Chrome History Parser                │
+│     │                  ├── WhatsApp / Telegram / Instagram      │
 │     │                  ├── Email Parser                         │
-│     │                  ├── Media Scanner (EXIF + Hashing)        │
+│     │                  ├── Media Scanner (EXIF + Hashing)       │
 │     │                  ├── Location Parser                      │
-│     │                  ├── Installed Apps Parser                 │
+│     │                  ├── Installed Apps Parser                │
 │     │                  └── Accounts Parser                      │
 │     ├── process ───► Timeline Construction + Correlation        │
 │     ├── report ────► HTML Report Generation                     │
-│     └── export ────► TOCTOU Check → Merkle Seal → Sign → ZIP   │
+│     └── export ────► TOCTOU Check → Merkle Seal → Sign → ZIP    │
 │                                                                 │
 │  xtractr_verify.py ─── Independent Post-Export Verifier         │
 │     ├── Dual Ledger Consistency (JSONL ↔ SQLite)                │
