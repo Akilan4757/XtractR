@@ -242,7 +242,3 @@ See [LICENSE](LICENSE) for full terms. You may use this software for personal, n
 © 2026 Akilan. All rights reserved.
 
 ---
-
-<p align="center">
-  <sub>Built for high-stakes forensic investigations.</sub>
-</p>
