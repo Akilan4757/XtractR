@@ -493,7 +493,7 @@ The frontend is a **self-contained static HTML file** (`report.html`). It requir
 ```
 ┌────────────────────────────────────────────────────┐
 │  TOP NAVIGATION BAR (fixed)                        │
-│  Logo │ Case ID │ Investigator │ Export Controls    │
+│  Logo │ Case ID │ Investigator │ Export Controls   │
 ├──────────┬─────────────────────────────────────────┤
 │          │  CONTEXT HEADER                         │
 │  LEFT    │  Page Title │ Artifact Count │ Search   │
@@ -506,7 +506,7 @@ The frontend is a **self-contained static HTML file** (`report.html`). It requir
 │  Contacts│                                         │
 │  Web     │─────────────────────────────────────────│
 │  Media   │  PAGINATION                             │
-│  Apps    │  ◀ Page 1 of N ▶                        │
+│  Apps    │  ◀ Page 1 of N ▶                       │
 │  ...     │                                         │
 │  Timeline│                                         │
 │  Ledger  │                                         │
