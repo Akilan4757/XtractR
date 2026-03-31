@@ -83,7 +83,7 @@ The VFS is an abstract interface (`core/vfs/base.py`) that provides a consistent
 | `is_file()`   | Check if a path points to a file.                          |
 | `is_dir()`    | Check if a path points to a directory.                     |
 | `open()`      | Open a file for reading. Enforces read-only mode.          |
-| `stat()`      | Return file metadata: size, mtime, ctime, mode.           |
+| `stat()`      | Return file metadata: size, mtime, ctime, mode.            |
 | `walk()`      | Recursive directory walk, yields `(root, dirs, files)`.    |
 | `read_bytes()`| Read raw bytes from a file with optional size limit.       |
 
@@ -141,18 +141,18 @@ DEPENDENCIES = []
 
 All plugins return `Artifact` dataclass instances (`core/plugin_interface.py`):
 
-| Field             | Type             | Description                                    |
-|-------------------|------------------|------------------------------------------------|
-| `artifact_id`     | `str`            | Unique identifier for this artifact instance.  |
+| Field             | Type             | Description                                           |
+|-------------------|------------------|-------------------------------------------------------|
+| `artifact_id`     | `str`            | Unique identifier for this artifact instance.         |
 | `artifact_type`   | `str`            | Category (e.g., `SMS`, `CALL_LOG`, `CHROME_HISTORY`). |
-| `source_path`     | `str`            | Path within the VFS where the source data was found. |
-| `timestamp_utc`   | `int`            | Unix epoch in milliseconds (UTC).              |
-| `parser_name`     | `str`            | Name of the plugin that produced this artifact.|
-| `parser_version`  | `str`            | Semantic version of the plugin.                |
+| `source_path`     | `str`            | Path within the VFS where the source data was found.  |
+| `timestamp_utc`   | `int`            | Unix epoch in milliseconds (UTC).                     |
+| `parser_name`     | `str`            | Name of the plugin that produced this artifact.       |
+| `parser_version`  | `str`            | Semantic version of the plugin.                       |
 | `actor`           | `str`            | Entity associated (phone number, email, or `DEVICE`). |
 | `details`         | `Dict[str, Any]` | The actual parsed content (message body, call duration, URL, etc.). |
-| `reference_hash`  | `Optional[str]`  | SHA-256 hash of the source file.               |
-| `confidence`      | `float`          | Confidence score (0.0–1.0).                    |
+| `reference_hash`  | `Optional[str]`  | SHA-256 hash of the source file.                      |
+| `confidence`      | `float`          | Confidence score (0.0–1.0).                           |
 
 ### Registered Plugins
 
