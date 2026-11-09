@@ -22,9 +22,23 @@ class DirectoryVFS(BaseVFS):
         Prevents traversal out of source_path.
         """
         clean_path = self._normalize_path(path)
-        full_path = os.path.normpath(os.path.join(self.source_path, clean_path))
-        
-        if not full_path.startswith(self.source_path):
+        base = os.path.realpath(self.source_path)
+        full_path = os.path.abspath(os.path.join(base, clean_path))
+        try:
+            resolved = os.path.realpath(full_path)
+            common = os.path.commonpath([base, resolved])
+            if common != base:
+                raise PermissionError(f"Path traversal attempted: {path}")
+            # Do not allow any evidence symlink to redirect reads elsewhere.
+            relative = os.path.relpath(full_path, base)
+            current = base
+            for part in relative.split(os.sep):
+                if part in ("", "."):
+                    continue
+                current = os.path.join(current, part)
+                if os.path.islink(current):
+                    raise PermissionError(f"Symlink access is forbidden in evidence: {path}")
+        except ValueError:
             raise PermissionError(f"Path traversal attempted: {path}")
         
         return full_path
@@ -68,7 +82,9 @@ class DirectoryVFS(BaseVFS):
     def walk(self, top: str) -> Generator[Tuple[str, List[str], List[str]], None, None]:
         real_top = self._get_real_path(top)
         
-        for root, dirs, files in os.walk(real_top):
+        for root, dirs, files in os.walk(real_top, followlinks=False):
+            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
+            files[:] = [f for f in files if not os.path.islink(os.path.join(root, f))]
             # Convert back to virtual path (relative to source root)
             rel_root = os.path.relpath(root, self.source_path)
             if rel_root == ".":

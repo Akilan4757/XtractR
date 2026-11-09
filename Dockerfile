@@ -6,7 +6,7 @@
 # Build:  docker build -t xtractr:latest .
 # Test:   docker run --rm xtractr:latest make test
 # Run:    docker run --rm -v /evidence:/evidence -v /output:/output \
-#           xtractr:latest python xtractr.py /evidence /output/case_001
+#           xtractr:latest python main.py /evidence /output/case_001
 # =============================================================================
 
 # --- Stage 1: Base ---
@@ -41,7 +41,7 @@ FROM deps AS app
 COPY core/ ./core/
 COPY plugins/ ./plugins/
 COPY tests/ ./tests/
-COPY xtractr.py xtractr_verify.py Makefile ./
+COPY main.py xtractr_verify.py Makefile ./
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash xtractr && \

@@ -18,10 +18,20 @@ VALID_ARTIFACT_TYPES = {
     "SMS", "CALL_LOG", "CONTACT", "BROWSER_HISTORY",
     "INSTALLED_APP", "MEDIA_FILE", "WHATSAPP_MSG",
     "WHATSAPP_PRESENCE", "ACCOUNT", "LOCATION",
-    "NOTIFICATION", "SYSTEM_EVENT", "UNKNOWN",
+    "NOTIFICATION", "SYSTEM_EVENT", "UNKNOWN", "EMAIL", "EMAIL_THREAD",
+    "TELEGRAM_MSG", "TELEGRAM_CONTACT", "TELEGRAM_MEDIA",
+    "INSTAGRAM_MSG", "INSTAGRAM_THREAD", "WEB_HISTORY", "WEB_DOWNLOAD",
+    "CONTACT_CARD", "SAVED_PLACE", "MEDIA",
     # Inferred variants
     "SMS_INFERRED", "CALL_LOG_INFERRED", "CONTACT_INFERRED",
     "BROWSER_HISTORY_INFERRED", "MEDIA_FILE_INFERRED",
+    "WHATSAPP_MSG_INFERRED", "INSTALLED_APP_INFERRED",
+    "ACCOUNT_INFERRED", "LOCATION_INFERRED", "EMAIL_INFERRED",
+    "EMAIL_THREAD_INFERRED", "TELEGRAM_MSG_INFERRED",
+    "TELEGRAM_CONTACT_INFERRED", "TELEGRAM_MEDIA_INFERRED",
+    "INSTAGRAM_MSG_INFERRED", "INSTAGRAM_THREAD_INFERRED",
+    "WEB_HISTORY_INFERRED", "WEB_DOWNLOAD_INFERRED",
+    "CONTACT_CARD_INFERRED", "SAVED_PLACE_INFERRED", "MEDIA_INFERRED",
 }
 
 # Plausible timestamp range: 2007-01-01 to 2030-01-01 (in ms)
@@ -37,6 +47,12 @@ def validate_artifact(art: Artifact) -> Tuple[bool, Optional[str]]:
     INV-004: All required fields must be non-null and non-empty.
     INV-007: Confidence must be consistent with artifact type.
     """
+    # Centralized epoch-0 timestamp remediation:
+    if art.timestamp_utc == 0:
+        if not art.artifact_type.endswith("_INFERRED"):
+            art.artifact_type = f"{art.artifact_type}_INFERRED"
+        if art.confidence >= 1.0:
+            art.confidence = 0.5
     
     if not art.artifact_id or not isinstance(art.artifact_id, str):
         return False, "artifact_id is missing or not a string"

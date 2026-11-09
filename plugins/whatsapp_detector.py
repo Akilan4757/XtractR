@@ -17,18 +17,21 @@ class WhatsAppDetector(BasePlugin):
             for f in files:
                 if f == "msgstore.db" or (f.startswith("msgstore") and f.endswith(".db.crypt14")):
                     path = os.path.join(root, f)
-                    artifacts.append(Artifact(
-                        artifact_id=f"wa_db_{hash(path)}",
-                        artifact_type="ENCRYPTED_DB",
-                        source_path=path,
-                        timestamp_utc=0,
-                        parser_name=self.NAME,
-                        parser_version=self.VERSION,
-                        actor="DEVICE",
-                        details={
-                            "info": "Encrypted WhatsApp Database detected.",
-                            "filename": f
-                        },
-                        confidence=1.0
-                    ))
+                    try:
+                        artifacts.append(Artifact(
+                            artifact_id=f"wa_db_{self.derive_artifact_id('wa', path)}",
+                            artifact_type="ENCRYPTED_DB",
+                            source_path=path,
+                            timestamp_utc=0,
+                            parser_name=self.NAME,
+                            parser_version=self.VERSION,
+                            actor="DEVICE",
+                            details={
+                                "info": "Encrypted WhatsApp Database detected.",
+                                "filename": f
+                            },
+                            confidence=1.0
+                        ))
+                    except Exception as e:
+                        self.errors.append(f"WhatsApp detection failed: {e}")
         return artifacts

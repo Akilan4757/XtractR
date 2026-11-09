@@ -109,7 +109,7 @@ class MediaScanner(BasePlugin):
                 timestamp_ms = int(stats.get("mtime", 0) * 1000)
 
                 artifacts.append(Artifact(
-                    artifact_id=f"media_{abs(hash(path))}",
+                    artifact_id=f"media_{self.derive_artifact_id('media', path)}",
                     artifact_type="MEDIA",
                     source_path=path,
                     timestamp_utc=timestamp_ms,
@@ -121,6 +121,7 @@ class MediaScanner(BasePlugin):
 
         if errors:
             logger.info(f"[MediaScanner] Completed with {len(errors)} non-fatal errors / {len(artifacts)} artifacts found.")
+            self.errors.extend(errors)
 
         return artifacts
 

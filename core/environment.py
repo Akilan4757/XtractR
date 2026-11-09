@@ -2,7 +2,7 @@
 XtractR Execution Environment Verification — Measured Boot
 
 Computes a Merkle root of all Python source files in the tool's
-core/, orchestrator/, and plugins/ directories. This hash is logged
+core/ and plugins/ directories. This hash is logged
 as the first custody event, proving the exact tool state used for
 the forensic acquisition.
 """
@@ -29,13 +29,13 @@ def _hash_file(filepath: str) -> str:
 
 def compute_tool_hash(project_root: str = None) -> str:
     """
-    Walk core/, orchestrator/, plugins/ and compute a Merkle root
+    Walk core/ and plugins/ and compute a Merkle root
     of all .py file hashes. This proves the exact tool version used.
     """
     if project_root is None:
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    dirs_to_scan = ["core", "orchestrator", "plugins"]
+    dirs_to_scan = ["core", "plugins"]
     file_hashes = []
 
     for dirname in dirs_to_scan:

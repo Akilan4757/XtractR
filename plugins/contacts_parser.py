@@ -3,7 +3,6 @@ Contacts Parser Plugin — XtractR Forensic Platform
 Extracts contacts from Android contacts2.db.
 """
 import sqlite3
-import tempfile
 import os
 import logging
 from typing import List, Dict, Any
@@ -34,14 +33,8 @@ class ContactsParser(BasePlugin):
 
         for db_path in candidates:
             try:
-                with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as tmp:
-                    tmp.write(vfs.read_bytes(db_path))
-                    tmp.flush()
-
-                    conn = sqlite3.connect(tmp.name)
-                    conn.row_factory = sqlite3.Row
+                with self.open_evidence_db(vfs, db_path) as conn:
                     cursor = conn.cursor()
-
                     parsed = False
 
                     # Strategy 1: view_data (modern Android)
@@ -51,21 +44,24 @@ class ContactsParser(BasePlugin):
                             "WHERE mimetype='vnd.android.cursor.item/phone_v2'"
                         )
                         for row in cursor.fetchall():
-                            name = row["display_name"] or "Unknown"
-                            number = row["data1"] or "Unknown"
-                            artifacts.append(Artifact(
-                                artifact_id=f"contact_{abs(hash((name, number)))}",
-                                artifact_type="CONTACT",
-                                source_path=db_path,
-                                timestamp_utc=0,
-                                parser_name=self.NAME,
-                                parser_version=self.VERSION,
-                                actor=str(number),
-                                details={"name": name, "number": number},
-                            ))
+                            try:
+                                name = row["display_name"] or "Unknown"
+                                number = row["data1"] or "Unknown"
+                                artifacts.append(Artifact(
+                                    artifact_id=f"contact_{self.derive_artifact_id('contact', name, number)}",
+                                    artifact_type="CONTACT",
+                                    source_path=db_path,
+                                    timestamp_utc=0,
+                                    parser_name=self.NAME,
+                                    parser_version=self.VERSION,
+                                    actor=str(number),
+                                    details={"name": name, "number": number},
+                                ))
+                            except Exception as e:
+                                self.errors.append(f"Contact row parse failed (Strategy 1): {e}")
                         parsed = True
                     except sqlite3.OperationalError as e:
-                        logger.debug(f"[ContactsParser] view_data not available in {db_path}: {e}")
+                        logger.debug(f"view_data not available in {db_path}: {e}")
 
                     # Strategy 2: raw_contacts + data join (fallback)
                     if not parsed:
@@ -78,23 +74,27 @@ class ContactsParser(BasePlugin):
                                 WHERE m.mimetype = 'vnd.android.cursor.item/phone_v2'
                             """)
                             for row in cursor.fetchall():
-                                name = row["display_name"] or "Unknown"
-                                number = row["data1"] or "Unknown"
-                                artifacts.append(Artifact(
-                                    artifact_id=f"contact_{abs(hash((name, number)))}",
-                                    artifact_type="CONTACT",
-                                    source_path=db_path,
-                                    timestamp_utc=0,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor=str(number),
-                                    details={"name": name, "number": number},
-                                ))
+                                try:
+                                    name = row["display_name"] or "Unknown"
+                                    number = row["data1"] or "Unknown"
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"contact_{self.derive_artifact_id('contact', name, number)}",
+                                        artifact_type="CONTACT",
+                                        source_path=db_path,
+                                        timestamp_utc=0,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor=str(number),
+                                        details={"name": name, "number": number},
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"Contact row parse failed (Strategy 2): {e}")
                         except sqlite3.OperationalError as e:
-                            logger.warning(f"[ContactsParser] Both strategies failed on {db_path}: {e}")
+                            logger.warning(f"Both strategies failed on {db_path}: {e}")
+                            self.errors.append(f"Both strategies failed on {db_path}: {e}")
 
-                    conn.close()
             except Exception as e:
-                logger.warning(f"[ContactsParser] Failed to process {db_path}: {e}")
+                logger.warning(f"Failed to process {db_path}: {e}")
+                self.errors.append(f"Failed to process {db_path}: {e}")
 
         return artifacts

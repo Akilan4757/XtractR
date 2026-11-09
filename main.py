@@ -14,6 +14,7 @@ from core.reporting import generate_report
 
 from core.export import ExportManager
 from core.environment import log_environment
+from core.integrity import canonical_json
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -28,38 +29,31 @@ def main():
     cmd_init.add_argument("--case-id", required=True)
     cmd_init.add_argument("--output", required=True, help="Case Directory")
     cmd_init.add_argument("--investigator-name", required=True, help="Name of the investigating officer (mandatory)")
-    cmd_init.add_argument("--passphrase", help="Key passphrase (prompted if not provided)")
 
     # ingest
     cmd_ingest = subparsers.add_parser("ingest", help="Ingest evidence source")
     cmd_ingest.add_argument("--case-dir", required=True)
     cmd_ingest.add_argument("--source", required=True, help="Input file/dir")
-    cmd_ingest.add_argument("--passphrase", help="Key passphrase")
 
     # scan (baseline)
     cmd_scan = subparsers.add_parser("scan", help="Create integrity baseline")
     cmd_scan.add_argument("--case-dir", required=True)
-    cmd_scan.add_argument("--passphrase", help="Key passphrase")
 
     # plugins
     cmd_plugins = subparsers.add_parser("run-plugins", help="Execute plugins")
     cmd_plugins.add_argument("--case-dir", required=True)
-    cmd_plugins.add_argument("--passphrase", help="Key passphrase")
 
     # processing
     cmd_proc = subparsers.add_parser("process", help="Run Timeline & Correlation")
     cmd_proc.add_argument("--case-dir", required=True)
-    cmd_proc.add_argument("--passphrase", help="Key passphrase")
     
     # report
     cmd_report = subparsers.add_parser("report", help="Generate Report & Certs")
     cmd_report.add_argument("--case-dir", required=True)
-    cmd_report.add_argument("--passphrase", help="Key passphrase")
     
     # export
     cmd_export = subparsers.add_parser("export", help="Create Export Bundle")
     cmd_export.add_argument("--case-dir", required=True)
-    cmd_export.add_argument("--passphrase", help="Key passphrase")
 
     args = parser.parse_args()
 
@@ -67,8 +61,15 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # Resolve passphrase
-    passphrase = getattr(args, 'passphrase', None)
+    # Resolve passphrase safely
+    import getpass
+    passphrase = os.environ.get("XTRACTR_PASSPHRASE")
+    if not passphrase:
+        try:
+            passphrase = getpass.getpass("Enter Case Passphrase: ")
+        except Exception:
+            logger.error("Passphrase not provided in non-interactive environment (set XTRACTR_PASSPHRASE)")
+            sys.exit(1)
     passphrase_bytes = passphrase.encode("utf-8") if passphrase else None
 
     # Common Init
@@ -132,7 +133,8 @@ def main():
             if not src: sys.exit(1)
             vfs = get_vfs(src)
             
-            engine = PluginEngine("plugins", db)
+            plugin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins")
+            engine = PluginEngine(plugin_dir, db)
             engine.run_all(vfs)
 
         elif args.command == "process":
@@ -142,7 +144,12 @@ def main():
             
             # Correlation
             corr_engine = CorrelationEngine(db)
-            corr_engine.run_correlations()
+            results = corr_engine.run_correlations()
+            
+            # Persist correlation results
+            corr_path = os.path.join(args.case_dir, "correlation.json")
+            with open(corr_path, "wb") as f:
+                f.write(canonical_json(results))
             
             db.log_event("PROCESSING_COMPLETE", "Timeline and Correlation finished")
 
@@ -160,10 +167,11 @@ def main():
             logger.info(f"Export Bundle Ready: {path}")
 
     except Exception as e:
-        logger.critical(f"Command Failed: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        from core.failure_taxonomy import classify_exception, fail_hard
+        code = classify_exception(e)
+        fail_hard(code, str(e))
     finally:
         db.close()
 

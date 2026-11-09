@@ -78,6 +78,16 @@ def generate_report(db: CaseDatabase, output_dir: str) -> str:
     c.execute("SELECT * FROM custody_events ORDER BY id ASC")
     ledger_rows = c.fetchall()
 
+    # Load correlation results if present
+    correlation_data = {}
+    corr_path = os.path.join(output_dir, "correlation.json")
+    if os.path.exists(corr_path):
+        try:
+            with open(corr_path, "r", encoding="utf-8") as f:
+                correlation_data = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load correlation results: {e}")
+
     c.execute("SELECT artifact_type, COUNT(*) as cnt FROM derived_artifacts GROUP BY artifact_type ORDER BY cnt DESC")
     stats_rows = c.fetchall()
 
@@ -205,6 +215,52 @@ def generate_report(db: CaseDatabase, output_dir: str) -> str:
             h += f'<tr>{td(badge(r[0], "type"))}{td(str(r[1]))}</tr>'
         return h + table_end("stats")
 
+    def build_correlation():
+        if not correlation_data:
+            return '<div class="card"><div class="card-body">No correlation data available. Run process first.</div></div>'
+        
+        # 1. Top Actors
+        top_actors = correlation_data.get("top_actors", [])
+        actors_html = table_start("correlation-actors-table", ["Actor", "Count"])
+        for act in top_actors:
+            actors_html += f'<tr>{td(esc(act.get("actor","")))}{td(str(act.get("count",0)))}</tr>'
+        actors_html += table_end("correlation-actors")
+        
+        # 2. Activity Heatmap
+        heatmap = correlation_data.get("activity_heatmap", {})
+        heatmap_html = table_start("correlation-heatmap-table", ["Hour of Day (UTC)", "Event Count"])
+        for hour in range(24):
+            count = heatmap.get(str(hour), heatmap.get(hour, 0))
+            heatmap_html += f'<tr>{td(f"{hour:02d}:00")}{td(str(count))}</tr>'
+        heatmap_html += table_end("correlation-heatmap")
+        
+        # 3. Suspicious Gaps
+        gaps = correlation_data.get("suspicious_gaps", [])
+        gaps_html = table_start("correlation-gaps-table", ["Start (UTC)", "End (UTC)", "Duration"])
+        for gap in gaps:
+            duration_sec = gap.get("gap_duration_seconds", 0)
+            hours = duration_sec // 3600
+            minutes = (duration_sec % 3600) // 60
+            duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
+            gaps_html += f'<tr>{td(esc(gap.get("start_utc","")))}{td(esc(gap.get("end_utc","")))}{td(badge(duration_str) if hours >= 24 else duration_str)}</tr>'
+        gaps_html += table_end("correlation-gaps")
+        
+        h = f'''
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="font-weight:600;padding:10px 15px;background:#f8f9fa;border-bottom:1px solid #dee2e6;">Top Communicators</div>
+            <div class="card-body" style="padding:15px;">{actors_html}</div>
+        </div>
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="font-weight:600;padding:10px 15px;background:#f8f9fa;border-bottom:1px solid #dee2e6;">Activity Hourly Heatmap</div>
+            <div class="card-body" style="padding:15px;">{heatmap_html}</div>
+        </div>
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="font-weight:600;padding:10px 15px;background:#f8f9fa;border-bottom:1px solid #dee2e6;">Suspicious Inactivity Gaps (&gt; 6 hours)</div>
+            <div class="card-body" style="padding:15px;">{gaps_html}</div>
+        </div>
+        '''
+        return h
+
     # ── Overview page ─────────────────────────────────────────────
     overview_html = f'''
     <div class="stats-row">
@@ -256,6 +312,7 @@ def generate_report(db: CaseDatabase, output_dir: str) -> str:
       {nav_item("loc", "Location", len(loc_rows))}
       {nav_item("accounts", "Accounts", len(account_rows))}
       {nav_item("timeline", "Timeline", len(timeline_rows))}
+      {nav_item("correlation", "Correlation", len(correlation_data.get("suspicious_gaps", [])) if correlation_data else 0)}
     </div>
     <div class="sidebar-label">Governance</div>
     <div class="sidebar-section">
@@ -311,6 +368,7 @@ def generate_report(db: CaseDatabase, output_dir: str) -> str:
   <div class="page" id="page-loc">{page_header("Location Data", len(loc_rows), "loc-table")}{build_location()}</div>
   <div class="page" id="page-accounts">{page_header("Accounts", len(account_rows), "accounts-table")}{build_accounts()}</div>
   <div class="page" id="page-timeline">{page_header("Timeline", len(timeline_rows), "timeline-table")}{build_timeline()}</div>
+  <div class="page" id="page-correlation">{page_header("Correlation & Gaps", len(correlation_data.get("suspicious_gaps", [])) if correlation_data else 0, "correlation-gaps-table")}{build_correlation()}</div>
   <div class="page" id="page-ledger">{page_header("Evidence Ledger", len(ledger_rows), "ledger-table")}{build_ledger()}</div>
   <div class="page" id="page-stats">{page_header("Statistics", len(stats_rows), "stats-table")}{build_stats()}</div>
 

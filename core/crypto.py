@@ -39,15 +39,19 @@ class IdentityManager:
         Returns True if successful.
         """
         if passphrase is None:
-            if os.path.exists(self.private_key_path):
-                pp = getpass.getpass("Enter key passphrase: ")
+            env_pass = os.environ.get("XTRACTR_PASSPHRASE")
+            if env_pass:
+                passphrase = env_pass.encode("utf-8")
             else:
-                pp = getpass.getpass("Create new key passphrase: ")
-                pp2 = getpass.getpass("Confirm passphrase: ")
-                if pp != pp2:
-                    logger.error("Passphrases do not match")
-                    return False
-            passphrase = pp.encode("utf-8")
+                if os.path.exists(self.private_key_path):
+                    pp = getpass.getpass("Enter key passphrase: ")
+                else:
+                    pp = getpass.getpass("Create new key passphrase: ")
+                    pp2 = getpass.getpass("Confirm passphrase: ")
+                    if pp != pp2:
+                        logger.error("Passphrases do not match")
+                        return False
+                passphrase = pp.encode("utf-8")
 
         self._passphrase = passphrase
 
@@ -140,8 +144,8 @@ class IdentityManager:
                 .issuer_name(issuer)
                 .public_key(self._public_key)
                 .serial_number(x509.random_serial_number())
-                .not_valid_before(datetime.datetime.now(datetime.UTC))
-                .not_valid_after(datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=365 * 5))
+                .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+                .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365 * 5))
                 .add_extension(
                     x509.BasicConstraints(ca=False, path_length=None),
                     critical=True,

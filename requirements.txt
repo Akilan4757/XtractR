@@ -14,3 +14,6 @@ pytest-cov>=4.0
 # Utilities
 tqdm>=4.65.0  # For progress bars
 input_timeout>=0.1.0 # For input handling (if needed)
+
+# GUI
+flask>=3.0.0

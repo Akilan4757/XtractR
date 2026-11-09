@@ -3,7 +3,7 @@ XtractR Report Template — Professional SaaS Dashboard
 CSS, HTML structure, and JS for the forensic evidence report.
 """
 
-GOOGLE_FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">'
+GOOGLE_FONTS = ""
 
 CSS = """
 :root {

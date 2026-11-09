@@ -4,7 +4,6 @@ Extracts chat messages from Android WhatsApp msgstore.db / wa.db.
 Supports both legacy and current schema versions.
 """
 import sqlite3
-import tempfile
 import os
 import logging
 from typing import List, Dict, Any
@@ -37,12 +36,7 @@ class WhatsAppParser(BasePlugin):
 
         for db_path in msg_dbs:
             try:
-                with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as tmp:
-                    tmp.write(vfs.read_bytes(db_path))
-                    tmp.flush()
-
-                    conn = sqlite3.connect(tmp.name)
-                    conn.row_factory = sqlite3.Row
+                with self.open_evidence_db(vfs, db_path) as conn:
                     cursor = conn.cursor()
 
                     # Detect schema version — newer WA uses 'message' table
@@ -57,9 +51,9 @@ class WhatsAppParser(BasePlugin):
                     else:
                         logger.warning(f"[WhatsApp] No known message table in {db_path}")
 
-                    conn.close()
             except Exception as e:
                 logger.warning(f"[WhatsApp] Failed to process {db_path}: {e}")
+                self.errors.append(f"Failed to process {db_path}: {e}")
 
         return artifacts
 
@@ -75,29 +69,33 @@ class WhatsAppParser(BasePlugin):
                 ORDER BY m.timestamp ASC
             """)
             for row in cursor.fetchall():
-                ts = self.normalize_timestamp(row["timestamp"])
-                body = row["text_data"] or ""
-                media_type = self._media_type_label(row["message_type"])
-                direction = "SENT" if row["from_me"] == 1 else "RECEIVED"
-                chat_jid = row["chat_jid"] or "unknown"
+                try:
+                    ts = self.normalize_timestamp(row["timestamp"])
+                    body = row["text_data"] or ""
+                    media_type = self._media_type_label(row["message_type"])
+                    direction = "SENT" if row["from_me"] == 1 else "RECEIVED"
+                    chat_jid = row["chat_jid"] or "unknown"
 
-                artifacts.append(Artifact(
-                    artifact_id=f"wa_msg_{row['_id']}",
-                    artifact_type="WHATSAPP_MSG",
-                    source_path=db_path,
-                    timestamp_utc=ts,
-                    parser_name=self.NAME,
-                    parser_version=self.VERSION,
-                    actor=chat_jid,
-                    details={
-                        "body": body[:4096],
-                        "direction": direction,
-                        "chat_id": str(row["chat_row_id"]),
-                        "media_type": media_type,
-                    },
-                ))
+                    artifacts.append(Artifact(
+                        artifact_id=f"wa_msg_{row['_id']}",
+                        artifact_type="WHATSAPP_MSG",
+                        source_path=db_path,
+                        timestamp_utc=ts,
+                        parser_name=self.NAME,
+                        parser_version=self.VERSION,
+                        actor=chat_jid,
+                        details={
+                            "body": body[:4096],
+                            "direction": direction,
+                            "chat_id": str(row["chat_row_id"]),
+                            "media_type": media_type,
+                        },
+                    ))
+                except Exception as e:
+                    self.errors.append(f"Modern message row parse failed: {e}")
         except sqlite3.OperationalError as e:
             logger.warning(f"[WhatsApp] Modern schema query failed: {e}")
+            self.errors.append(f"Modern schema query failed: {e}")
 
     def _parse_legacy_schema(self, cursor, db_path: str, artifacts: List[Artifact]):
         """Legacy schema: 'messages' table with key_remote_jid."""
@@ -109,29 +107,33 @@ class WhatsAppParser(BasePlugin):
                 ORDER BY timestamp ASC
             """)
             for row in cursor.fetchall():
-                ts = self.normalize_timestamp(row["timestamp"])
-                body = row["data"] or ""
-                media_type = self._media_type_label(row["media_wa_type"])
-                direction = "SENT" if row["key_from_me"] == 1 else "RECEIVED"
-                jid = row["key_remote_jid"] or "unknown"
+                try:
+                    ts = self.normalize_timestamp(row["timestamp"])
+                    body = row["data"] or ""
+                    media_type = self._media_type_label(row["media_wa_type"])
+                    direction = "SENT" if row["key_from_me"] == 1 else "RECEIVED"
+                    jid = row["key_remote_jid"] or "unknown"
 
-                artifacts.append(Artifact(
-                    artifact_id=f"wa_msg_{row['_id']}",
-                    artifact_type="WHATSAPP_MSG",
-                    source_path=db_path,
-                    timestamp_utc=ts,
-                    parser_name=self.NAME,
-                    parser_version=self.VERSION,
-                    actor=jid,
-                    details={
-                        "body": body[:4096],
-                        "direction": direction,
-                        "chat_id": jid,
-                        "media_type": media_type,
-                    },
-                ))
+                    artifacts.append(Artifact(
+                        artifact_id=f"wa_msg_{row['_id']}",
+                        artifact_type="WHATSAPP_MSG",
+                        source_path=db_path,
+                        timestamp_utc=ts,
+                        parser_name=self.NAME,
+                        parser_version=self.VERSION,
+                        actor=jid,
+                        details={
+                            "body": body[:4096],
+                            "direction": direction,
+                            "chat_id": jid,
+                            "media_type": media_type,
+                        },
+                    ))
+                except Exception as e:
+                    self.errors.append(f"Legacy message row parse failed: {e}")
         except sqlite3.OperationalError as e:
             logger.warning(f"[WhatsApp] Legacy schema query failed: {e}")
+            self.errors.append(f"Legacy schema query failed: {e}")
 
     @staticmethod
     def _media_type_label(mt) -> str:
