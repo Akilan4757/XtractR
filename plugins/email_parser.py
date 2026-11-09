@@ -1,9 +1,8 @@
 """
 Email Parser Plugin — XtractR Forensic Platform
-Extracts emails from Android Gmail cache (EmailProvider.db) and standalone .eml files.
+Extracts emails from Android Gmail cache (EmailProvider.db, EmailProviderBody.db) and standalone .eml files.
 """
 import sqlite3
-import tempfile
 import os
 import email
 import email.policy
@@ -38,22 +37,20 @@ class EmailParser(BasePlugin):
                 elif f.lower().endswith(".eml"):
                     eml_files.append(os.path.join(root, f))
 
+        messages_to_join = []
+        bodies_to_join = {}
+
         # Parse email databases
         for db_path in db_candidates:
             try:
-                with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as tmp:
-                    tmp.write(vfs.read_bytes(db_path))
-                    tmp.flush()
-
-                    conn = sqlite3.connect(tmp.name)
-                    conn.row_factory = sqlite3.Row
+                with self.open_evidence_db(vfs, db_path) as conn:
                     cursor = conn.cursor()
 
                     tables = {row[0] for row in cursor.execute(
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     ).fetchall()}
 
-                    # Standard Android EmailProvider schema
+                    # Standard Android EmailProvider schema - Message table
                     if "Message" in tables:
                         try:
                             cursor.execute("""
@@ -62,27 +59,40 @@ class EmailParser(BasePlugin):
                                 FROM Message ORDER BY timeStamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timeStamp"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"email_db_{row['_id']}",
-                                    artifact_type="EMAIL",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor=str(row["fromList"] or "unknown"),
-                                    details={
+                                try:
+                                    messages_to_join.append({
+                                        "id": row["_id"],
+                                        "db_path": db_path,
                                         "subject": row["subject"] or "",
                                         "from": row["fromList"] or "",
                                         "to": row["toList"] or "",
-                                        "snippet": (row["snippet"] or "")[:512],
+                                        "timestamp": row["timeStamp"],
+                                        "snippet": row["snippet"] or "",
                                         "read": bool(row["flagRead"]),
-                                    },
-                                ))
+                                    })
+                                except Exception as e:
+                                    self.errors.append(f"Message row extract failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.warning(f"[EmailParser] Message table query failed on {db_path}: {e}")
+                            logger.warning(f"Message table query failed on {db_path}: {e}")
+                            self.errors.append(f"Message table query failed on {db_path}: {e}")
 
-                    # Gmail conversations table (some versions)
+                    # Android EmailProviderBody schema - Body table
+                    if "Body" in tables:
+                        try:
+                            cursor.execute("""
+                                SELECT messageKey, textContent, htmlContent FROM Body
+                            """)
+                            for row in cursor.fetchall():
+                                try:
+                                    msg_key = row["messageKey"]
+                                    body_content = row["textContent"] or row["htmlContent"] or ""
+                                    bodies_to_join[msg_key] = body_content
+                                except Exception as e:
+                                    self.errors.append(f"Body row extract failed: {e}")
+                        except sqlite3.OperationalError as e:
+                            logger.warning(f"Body table query failed on {db_path}: {e}")
+
+                    # Gmail conversations table
                     if "conversations" in tables:
                         try:
                             cursor.execute("""
@@ -91,27 +101,62 @@ class EmailParser(BasePlugin):
                                 FROM conversations ORDER BY dateMs ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["dateMs"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"gmail_conv_{row['_id']}",
-                                    artifact_type="EMAIL_THREAD",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor=str(row["fromAddress"] or "unknown"),
-                                    details={
-                                        "subject": row["subject"] or "",
-                                        "snippet": (row["snippet"] or "")[:512],
-                                        "num_messages": row["numMessages"],
-                                    },
-                                ))
+                                try:
+                                    ts = self.normalize_timestamp(row["dateMs"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"gmail_conv_{row['_id']}",
+                                        artifact_type="EMAIL_THREAD",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor=str(row["fromAddress"] or "unknown"),
+                                        details={
+                                            "subject": row["subject"] or "",
+                                            "snippet": (row["snippet"] or "")[:512],
+                                            "num_messages": row["numMessages"],
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"Conversation row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[EmailParser] conversations query failed: {e}")
+                            logger.debug(f"conversations query failed: {e}")
 
-                    conn.close()
             except Exception as e:
-                logger.warning(f"[EmailParser] Failed to process {db_path}: {e}")
+                logger.warning(f"Failed to process {db_path}: {e}")
+                self.errors.append(f"Failed to process {db_path}: {e}")
+
+        # Join Messages and Bodies
+        for msg in messages_to_join:
+            try:
+                msg_id = msg["id"]
+                full_body = bodies_to_join.get(msg_id, "")
+                
+                # Use full body if available, fallback to snippet
+                body_to_use = full_body if full_body else msg["snippet"]
+                # Safeguard length but preserve substantial content (up to 10KB)
+                body_snippet = body_to_use[:10240]
+                
+                ts = self.normalize_timestamp(msg["timestamp"])
+                artifacts.append(Artifact(
+                    artifact_id=f"email_db_{msg_id}",
+                    artifact_type="EMAIL",
+                    source_path=msg["db_path"],
+                    timestamp_utc=ts,
+                    parser_name=self.NAME,
+                    parser_version=self.VERSION,
+                    actor=str(msg["from"] or "unknown"),
+                    details={
+                        "subject": msg["subject"],
+                        "from": msg["from"],
+                        "to": msg["to"],
+                        "snippet": body_snippet,
+                        "body_truncated": len(body_to_use) > 10240,
+                        "read": msg["read"],
+                    },
+                ))
+            except Exception as e:
+                self.errors.append(f"Message/Body join failed for message ID {msg.get('id')}: {e}")
 
         # Parse standalone .eml files (RFC 2822)
         for eml_path in eml_files:
@@ -140,18 +185,18 @@ class EmailParser(BasePlugin):
                         ct = part.get_content_type()
                         if ct == "text/plain":
                             try:
-                                body_snippet = part.get_content()[:512]
+                                body_snippet = part.get_content()[:10240]
                             except Exception:
                                 pass
                             break
                 else:
                     try:
-                        body_snippet = msg.get_content()[:512]
+                        body_snippet = msg.get_content()[:10240]
                     except Exception:
                         pass
 
                 artifacts.append(Artifact(
-                    artifact_id=f"eml_{abs(hash(eml_path))}",
+                    artifact_id=f"eml_{self.derive_artifact_id('eml', eml_path)}",
                     artifact_type="EMAIL",
                     source_path=eml_path,
                     timestamp_utc=ts,
@@ -167,6 +212,7 @@ class EmailParser(BasePlugin):
                     },
                 ))
             except Exception as e:
-                logger.warning(f"[EmailParser] Failed to parse .eml {eml_path}: {e}")
+                logger.warning(f"Failed to parse .eml {eml_path}: {e}")
+                self.errors.append(f"Failed to parse .eml {eml_path}: {e}")
 
         return artifacts

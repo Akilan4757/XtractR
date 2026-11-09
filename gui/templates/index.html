@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/xtractr-mark.svg">
+    <meta name="description" content="XtractR local digital evidence extraction and integrity verification workspace">
+    <title>XtractR | Evidence integrity</title>
+    <link rel="stylesheet" href="/static/style.css?v=20261109">
+</head>
+<body>
+
+<div class="app-layout">
+    <!-- ════ Sidebar (Apple Space Obsidian Glass) ════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo" aria-hidden="true"><img class="brand-symbol" src="/static/xtractr-mark.svg" alt=""></div>
+            <div>
+                <h1>XtractR</h1>
+                <div class="version">Evidence integrity workspace</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Main navigation">
+            <div class="nav-section-label">Workspace</div>
+            <button class="nav-item active" data-view="dashboard" onclick="navigateTo('dashboard')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg> Case history
+            </button>
+            <button class="nav-item" data-view="new-case" onclick="navigateTo('new-case')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> New case
+            </button>
+            <div class="nav-section-label">Evidence tools</div>
+            <button class="nav-item" data-view="received-verification" onclick="navigateTo('received-verification')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h9l5 5v11H5z"/><path d="M14 4v5h5M8 15l2.5 2.5L16 12"/></svg> Verify a bundle
+            </button>
+            <div class="nav-section-label" id="case-nav-label" style="display:none">Active case</div>
+            <button class="nav-item" data-view="pipeline" id="nav-pipeline" style="display:none" onclick="navigateTo('pipeline')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h6l2 5h8M4 17h6l2-5"/><circle cx="4" cy="7" r="1.5"/><circle cx="20" cy="12" r="1.5"/><circle cx="4" cy="17" r="1.5"/></svg> Pipeline
+            </button>
+            <button class="nav-item" data-view="artifacts" id="nav-artifacts" style="display:none" onclick="navigateTo('artifacts')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4.5 4.5"/></svg> Artifacts <span class="badge" id="artifact-count-badge">0</span>
+            </button>
+            <button class="nav-item" data-view="timeline" id="nav-timeline" style="display:none" onclick="navigateTo('timeline')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7"/></svg> Timeline
+            </button>
+            <button class="nav-item" data-view="custody" id="nav-custody" style="display:none" onclick="navigateTo('custody')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 4v2"/></svg> Chain of custody
+            </button>
+            <button class="nav-item" data-view="verify" id="nav-verify" style="display:none" onclick="navigateTo('verify')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5c0 4.5-2.8 7.7-7 10-4.2-2.3-7-5.5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg> Verification
+            </button>
+            <button class="nav-item" data-view="report-view" id="nav-report" style="display:none" onclick="navigateTo('report-view')">
+                <svg class="icon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h7l4 4V20H7z"/><path d="M14 3.5V8h4M10 12h5m-5 3h5"/></svg> Case report
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            Workstation Root: <span id="sidebar-cases-root">{{ cases_root }}</span>
+        </div>
+    </aside>
+
+    <!-- ════ Main Content ════ -->
+    <main class="main-content" id="main-content">
+
+        <!-- ──── Dashboard / Case History View ──── -->
+        <div id="view-dashboard" class="view dashboard-view">
+            <header class="dashboard-topbar">
+                <div class="dashboard-heading">
+                    <div class="eyebrow"><span class="eyebrow-mark"></span> XTRACTR / OPERATIONS</div>
+                    <h2>Forensic command center</h2>
+                    <p>One clear view of your evidence, extraction pipeline, and verification status.</p>
+                </div>
+                <div class="topbar-actions">
+                    <div class="local-status"><span class="status-dot"></span><span>LOCAL WORKSTATION</span></div>
+                    <button class="btn btn-primary" onclick="navigateTo('new-case')"><span class="button-plus">+</span> Create case</button>
+                </div>
+            </header>
+
+            <section class="dashboard-hero" aria-label="XtractR workspace overview">
+                <div class="hero-copy">
+                    <div class="hero-kicker">DIGITAL EVIDENCE, UNDER CONTROL</div>
+                    <h3>Follow the evidence.<br><span>Trust the trail.</span></h3>
+                    <p>Preserve source files, trace every extraction, and verify sealed case bundles from a single local workspace.</p>
+                    <div class="hero-actions">
+                        <button class="btn btn-primary" onclick="navigateTo('new-case')">Start a new case <span aria-hidden="true">&#8594;</span></button>
+                        <span class="hero-assurance"><span class="assurance-icon">&#10003;</span> Evidence-first workflow</span>
+                    </div>
+                </div>
+                <div class="hero-art" aria-hidden="true">
+                    <div class="hero-orbit orbit-one"></div><div class="hero-orbit orbit-two"></div><div class="hero-orbit orbit-three"></div>
+                    <div class="hero-core"><img class="brand-symbol" src="/static/xtractr-mark.svg" alt=""><span>EVIDENCE<br>TRACEABLE</span></div>
+                    <span class="orbit-node node-a"></span><span class="orbit-node node-b"></span><span class="orbit-node node-c"></span>
+                    <div class="hero-art-caption"><span class="status-dot"></span> LOCAL / SESSION READY</div>
+                </div>
+                <div class="hero-grid-glow"></div>
+            </section>
+
+            <section class="dashboard-stats" aria-label="Case metrics">
+                <article class="stat-card stat-blue">
+                    <div class="stat-topline"><span class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h6l2 2h8v10H4z"/><path d="M4 9h16"/></svg></span><span class="stat-trend">WORKSPACE</span></div>
+                    <div class="stat-value" id="stats-cases-count">0</div><div class="stat-label">Cases in workspace</div>
+                    <div class="stat-meter"><span id="cases-meter"></span></div>
+                </article>
+                <article class="stat-card stat-violet">
+                    <div class="stat-topline"><span class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg></span><span class="stat-trend">INDEXED</span></div>
+                    <div class="stat-value" id="stats-artifacts-count">0</div><div class="stat-label">Artifacts extracted</div>
+                    <div class="stat-meter"><span id="artifacts-meter"></span></div>
+                </article>
+                <article class="stat-card stat-green">
+                    <div class="stat-topline"><span class="stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5c0 4.5-2.8 7.7-7 10-4.2-2.3-7-5.5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="stat-trend">INTEGRITY</span></div>
+                    <div class="stat-value" id="stats-sealed-count">0</div><div class="stat-label">Bundles sealed</div>
+                    <div class="stat-meter"><span id="sealed-meter"></span></div>
+                </article>
+            </section>
+
+            <section class="case-section">
+                <div class="section-heading"><div><div class="eyebrow">CASE REGISTER</div><h3>Recent cases</h3></div><div class="section-note">Case data stays in your configured workspace</div></div>
+                <div class="case-history-grid" id="cases-grid"></div>
+                <div class="empty-state" id="no-cases" style="display:none">
+                    <div class="empty-visual" aria-hidden="true">
+                        <div class="empty-radar radar-a"></div><div class="empty-radar radar-b"></div><div class="empty-radar radar-c"></div>
+                        <div class="empty-radar-core"><svg viewBox="0 0 48 48"><path d="M10 13h10l4 4h14v19H10z"/><path d="M10 19h28M17 27h14m-14 5h9"/></svg></div>
+                        <span class="radar-sweep"></span>
+                    </div>
+                    <div class="empty-copy">
+                        <div class="eyebrow">YOUR WORKSPACE IS READY</div>
+                        <h3>Start with a case.<br><span>Keep every step accountable.</span></h3>
+                        <p>Create a case to link an evidence source, build a cryptographic baseline, run parsers, and export a verifiable package.</p>
+                        <button class="btn btn-primary" onclick="navigateTo('new-case')">Initialize first case <span aria-hidden="true">&#8594;</span></button>
+                    </div>
+                    <div class="empty-steps">
+                        <div><span>01</span><strong>Link evidence</strong><small>Directory, archive, or image</small></div>
+                        <div><span>02</span><strong>Analyze artifacts</strong><small>Trace parser output to source</small></div>
+                        <div><span>03</span><strong>Seal and verify</strong><small>Export hashes and integrity checks</small></div>
+                    </div>
+                </div>
+            </section>
+            <footer class="dashboard-footer"><span>XTRACTR LOCAL FORENSICS WORKSPACE</span><span>Evidence remains under examiner control</span></footer>
+        </div>
+
+        <div id="view-new-case" class="view new-case-view" style="display:none">
+            <header class="new-case-heading">
+                <div class="eyebrow"><span class="eyebrow-mark"></span> CASE INTAKE / NEW WORKSPACE</div>
+                <h2>Start with a clean chain of custody.</h2>
+                <p>Create a protected case workspace, then link its evidence source in the pipeline.</p>
+            </header>
+            <div class="new-case-layout">
+                <form class="card new-case-form" onsubmit="return createCase(event)">
+                    <div class="card-header"><div><div class="card-title">Case details</div><div class="new-case-form-hint">All fields are required to initialize a case workspace.</div></div></div>
+                    <div class="form-group">
+                        <label class="form-label" for="nc-case-id">Case identifier</label>
+                        <input class="form-input" id="nc-case-id" type="text" required maxlength="80" autocomplete="off" placeholder="e.g. CASE-2026-014">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="nc-investigator">Investigator name</label>
+                        <input class="form-input" id="nc-investigator" type="text" required maxlength="120" autocomplete="name" placeholder="Name recorded in the custody ledger">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="nc-passphrase">Signing-key passphrase</label>
+                        <input class="form-input" id="nc-passphrase" type="password" required minlength="12" autocomplete="new-password" placeholder="Use a unique passphrase (12+ characters)">
+                        <div class="field-help">Encrypts the investigator's private signing key. Store it securely; XtractR cannot recover it. Case databases and evidence files are not encrypted at rest.</div>
+                    </div>
+                    <div class="new-case-form-footer">
+                        <span class="local-note"><span class="status-dot"></span> Workspace files are stored locally</span>
+                        <button class="btn btn-primary" id="nc-submit-btn" type="submit">Create case workspace <span aria-hidden="true">&#8594;</span></button>
+                    </div>
+                </form>
+                <aside class="intake-rail" aria-label="Case workflow overview">
+                    <div class="intake-rail-head"><span class="intake-rail-icon"><img class="brand-symbol" src="/static/xtractr-mark.svg" alt=""></span><div><strong>Evidence workflow</strong><small>Every phase has a place</small></div></div>
+                    <div class="intake-step"><span>01</span><div><strong>Initialize</strong><small>Set case identity and protect the signing key</small></div><i></i></div>
+                    <div class="intake-step"><span>02</span><div><strong>Acquire</strong><small>Link the source and establish a baseline</small></div><i></i></div>
+                    <div class="intake-step"><span>03</span><div><strong>Analyze</strong><small>Run extraction and review findings</small></div><i></i></div>
+                    <div class="intake-step"><span>04</span><div><strong>Verify &amp; export</strong><small>Inspect integrity checks and package hashes</small></div></div>
+                    <div class="intake-rail-note">Start with a unique case identifier. You can add the evidence source in the next step.</div>
+                </aside>
+            </div>
+        </div>
+
+        <!-- ──── Pipeline Runner View ──── -->
+        <div id="view-received-verification" class="view received-verification-view" style="display:none">
+            <header class="page-header recipient-page-header">
+                <div>
+                    <div class="eyebrow"><span class="eyebrow-mark"></span> RECIPIENT WORKFLOW / INDEPENDENT CHECK</div>
+                    <h2>Verify a received bundle</h2>
+                    <div class="subtitle">Check a XtractR ZIP from another examiner before you rely on its contents.</div>
+                </div>
+                <span class="local-status"><span class="status-dot"></span> PROCESSED ON THIS WORKSTATION</span>
+            </header>
+
+            <section class="recipient-steps" aria-label="Verification steps">
+                <article><span>01</span><div><strong>Select the export</strong><small>Choose the ZIP you received</small></div></article>
+                <article><span>02</span><div><strong>Confirm the signer</strong><small>Compare a fingerprint sent separately</small></div></article>
+                <article><span>03</span><div><strong>Review every finding</strong><small>Inspect hashes and exact file locations</small></div></article>
+            </section>
+
+            <form id="received-bundle-form" class="card received-bundle-form" data-max-upload-bytes="{{ max_verify_upload_bytes }}" onsubmit="return verifyReceivedBundle(event)">
+                <div class="card-header"><div><div class="card-title">Incoming XtractR export</div><div class="new-case-form-hint">The uploaded archive is checked in a temporary workspace and removed when verification completes.</div></div></div>
+                <label class="bundle-dropzone" id="bundle-dropzone" for="received-bundle-file">
+                    <input id="received-bundle-file" type="file" accept=".zip,application/zip" required aria-describedby="bundle-file-help">
+                    <span class="dropzone-glyph" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 21V5m0 0-6 6m6-6 6 6M6 19v7h20v-7"/></svg></span>
+                    <strong id="bundle-file-label">Drop the sender's XtractR ZIP here</strong>
+                    <span id="bundle-file-help">or browse files · ZIP archive · maximum {{ (max_verify_upload_bytes / 1073741824)|round(1) }} GiB</span>
+                    <span class="selected-file-meta" id="bundle-file-meta" aria-live="polite">No bundle selected</span>
+                </label>
+
+                <div class="recipient-options">
+                    <div class="form-group">
+                        <label class="form-label" for="received-expected-fingerprint">Trusted signer fingerprint <span class="optional-label">Recommended</span></label>
+                        <input class="form-input mono" id="received-expected-fingerprint" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="64-character SHA-256 fingerprint">
+                        <div class="field-help">Get this from the sender over a separate trusted channel. A key inside the ZIP cannot prove who sent it.</div>
+                    </div>
+                    <label class="verify-evidence-option"><input type="checkbox" id="received-check-evidence" checked> Re-hash evidence bytes included in the ZIP</label>
+                </div>
+
+                <div class="recipient-form-footer">
+                    <span class="privacy-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 16 4v5c0 4-2.5 6.8-6 9-3.5-2.2-6-5-6-9V4z"/><path d="m7.5 9.5 1.7 1.7 3.5-3.7"/></svg> No archive files are added to your local cases</span>
+                    <button class="btn btn-primary" id="verify-received-btn" type="submit" disabled>Verify received bundle <span aria-hidden="true">&#8594;</span></button>
+                </div>
+            </form>
+
+            <section class="card received-results" id="received-results" style="display:none" aria-live="polite">
+                <div class="card-header received-results-header">
+                    <div><div class="card-title">Verification report</div><div class="verification-summary-text" id="received-results-summary"></div></div>
+                    <span class="verification-badge" id="received-status-badge"></span>
+                </div>
+                <p class="received-results-headline" id="received-results-headline"></p>
+                <div class="verification-checks" id="received-checks"></div>
+                <div class="received-report-actions"><button class="btn btn-ghost" id="download-received-report" type="button" style="display:none" onclick="downloadReceivedReport()">Download verification report (JSON)</button></div>
+            </section>
+
+            <aside class="recipient-trust-note"><strong>What a pass means</strong><span>It confirms that the signed package and checked bytes are internally consistent. Only a fingerprint you already trust can authenticate the sender. XtractR does not currently validate RFC 3161 timestamp trust.</span></aside>
+        </div>
+
+        <div id="view-pipeline" class="view" style="display:none">
+            <div class="page-header">
+                <div>
+                    <h2 id="pipeline-case-title">Pipeline Workspace</h2>
+                    <div class="subtitle" id="pipeline-case-sub">Review extracted artifacts, build timelines, and prepare a case report</div>
+                </div>
+            </div>
+
+            <!-- Passphrase Bar -->
+            <div class="passphrase-banner" id="passphrase-bar" style="display:none">
+                Signing-key passphrase is required to perform actions
+                <input type="password" class="form-input" id="session-passphrase"
+                       placeholder="Enter password" style="max-width:250px">
+                <button class="btn btn-sm btn-primary" onclick="setSessionPassphrase()">Unlock vault</button>
+            </div>
+
+            <!-- Pipeline Steps -->
+            <div class="pipeline-stepper" id="pipeline-stepper">
+                <div class="pipeline-step" data-stage="initialized">
+                    <div class="step-indicator">1</div>
+                    <div class="step-label">Init</div>
+                </div>
+                <div class="pipeline-step" data-stage="ingested">
+                    <div class="step-indicator">2</div>
+                    <div class="step-label">Ingest</div>
+                </div>
+                <div class="pipeline-step" data-stage="scanned">
+                    <div class="step-indicator">3</div>
+                    <div class="step-label">Scan</div>
+                </div>
+                <div class="pipeline-step" data-stage="plugins_done">
+                    <div class="step-indicator">4</div>
+                    <div class="step-label">Plugins</div>
+                </div>
+                <div class="pipeline-step" data-stage="processed">
+                    <div class="step-indicator">5</div>
+                    <div class="step-label">Process</div>
+                </div>
+                <div class="pipeline-step" data-stage="reported">
+                    <div class="step-indicator">6</div>
+                    <div class="step-label">Report</div>
+                </div>
+                <div class="pipeline-step" data-stage="exported">
+                    <div class="step-indicator">7</div>
+                    <div class="step-label">Export</div>
+                </div>
+            </div>
+
+            <!-- Stage Actions -->
+            <div class="card" id="pipeline-action-card">
+                <div class="card-header">
+                    <div class="card-title" id="pipeline-action-title">Next Processing Step</div>
+                    <div id="pipeline-action-buttons"></div>
+                </div>
+
+                <div id="export-options" class="export-options" style="display:none">
+                    <label><input type="checkbox" id="include-evidence-files" checked> Include original evidence files in the bundle</label>
+                    <div class="field-help">This copies the source file tree into the ZIP. Large evidence collections require correspondingly large export files and additional disk space.</div>
+                </div>
+
+                <!-- Ingest Form -->
+                <div id="ingest-form" style="display:none; margin-top: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Absolute Path to Physical/Logical Evidence Source</label>
+                        <input type="text" class="form-input" id="ingest-source"
+                               placeholder="e.g. C:\Forensics\acquired_device_dump or /mnt/evidence/logical_archive.zip">
+                    </div>
+                    <button class="btn btn-primary" onclick="runIngest()">Mount and Link Evidence</button>
+                </div>
+
+                <!-- Console Output -->
+                <div class="console" id="pipeline-console" style="display:none; margin-top:20px;"></div>
+            </div>
+
+            <!-- Stats -->
+            <div class="card-grid" id="pipeline-stats" style="margin-top:20px"></div>
+        </div>
+
+        <!-- ──── Artifacts View ──── -->
+        <div id="view-artifacts" class="view" style="display:none">
+            <div class="page-header">
+                <div>
+                    <h2>Evidence Explorer</h2>
+                    <div class="subtitle" id="artifacts-subtitle">Browse all extracted data elements with forensic classification</div>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <select class="form-select" id="filter-type" onchange="loadArtifacts(1)">
+                    <option value="">All Forensic Types</option>
+                </select>
+                <input type="text" class="form-input" id="filter-search"
+                       placeholder="Search artifact properties..." onkeyup="debounceSearch()">
+                <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Clear filters</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Forensic Classification</th>
+                            <th>Recorded Timestamp (UTC)</th>
+                            <th>Associated Actor</th>
+                            <th>Evidence Path (VFS)</th>
+                            <th>Acquisition Confidence</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="artifacts-tbody"></tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="artifacts-pagination"></div>
+        </div>
+
+        <!-- ──── Timeline & Heatmap View ──── -->
+        <div id="view-timeline" class="view" style="display:none">
+            <div class="page-header">
+                <div>
+                    <h2>Chronological Timeline & Analysis</h2>
+                    <div class="subtitle">Audit timelines, gaps, heatmaps, and suspicious inactivity bounds</div>
+                </div>
+            </div>
+
+            <div class="chart-grid" id="timeline-charts"></div>
+
+            <div class="card" id="timeline-correlation" style="display:none">
+                <div class="card-header">
+                    <div class="card-title">Timeline Gap & Activity Correlation</div>
+                </div>
+                <div id="correlation-content"></div>
+            </div>
+
+            <div class="table-container" style="margin-top:20px">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>UTC Timestamp</th>
+                            <th>Type</th>
+                            <th>Actor</th>
+                            <th>Artifact Payload Summary</th>
+                            <th>Source Evidence File</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timeline-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ──── Chain of Custody View ──── -->
+        <div id="view-custody" class="view" style="display:none">
+            <div class="page-header">
+                <div>
+                    <h2>Chain of Custody Ledgers</h2>
+                    <div class="subtitle">Immutable forensic audit log matching SQLite & JSONL block ledger</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Block #</th>
+                            <th>UTC Timestamp</th>
+                            <th>Logged Event Action</th>
+                            <th>Audit Description</th>
+                            <th>Signed Investigator</th>
+                            <th>Cryptographic Hash</th>
+                        </tr>
+                    </thead>
+                    <tbody id="custody-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ──── Cryptographic Verification View ──── -->
+        <div id="view-verify" class="view" style="display:none">
+            <div class="page-header">
+                <div>
+                    <h2>Verification workspace</h2>
+                    <div class="subtitle">Run integrity checks and inspect every issue at its file or record location</div>
+                </div>
+            </div>
+
+            <div class="card verification-controls">
+                <div class="card-header"><div class="card-title">Verification inputs</div></div>
+                <p class="verification-intro">Check the database, cryptographic seal, signed export manifest, custody ledgers, signer identity, and optionally the original evidence source.</p>
+                <div class="verification-inputs">
+                    <div class="form-group pin-field">
+                        <label class="form-label" for="expected-fingerprint">Trusted investigator fingerprint <span class="optional-label">Optional, recommended</span></label>
+                        <input class="form-input mono" id="expected-fingerprint" type="text" autocomplete="off" spellcheck="false" placeholder="SHA-256 public-key fingerprint from a trusted source">
+                        <div class="field-help">A key included in the case proves consistency, not who created it. Enter a fingerprint received separately to authenticate the signer.</div>
+                    </div>
+                    <label class="verify-evidence-option"><input type="checkbox" id="verify-original-evidence" checked> Re-hash the original evidence source</label>
+                    <button class="btn btn-primary" id="run-verification-btn" onclick="runIntegrityVerification()">Run verification</button>
+                </div>
+            </div>
+
+            <div class="card verification-results" id="verification-results-card" style="display:none">
+                <div class="card-header">
+                    <div><div class="card-title">Verification report</div><div id="verification-summary" class="verification-summary-text"></div></div>
+                    <span id="verification-status-badge"></span>
+                </div>
+                <div id="verification-checklist-container" class="verification-checks"></div>
+            </div>
+
+            <div class="card export-evidence-card" id="evidence-export-card" style="display:none">
+                <div class="card-header"><div class="card-title">Evidence hash inventory</div></div>
+                <p>The signed case bundle contains a machine-readable inventory and a human-readable README listing SHA-256, SHA-512, SHA-384, SHA-1, and MD5 for each source file.</p>
+                <div class="export-download-actions">
+                    <a class="btn btn-primary" id="case-bundle-link" href="#">Download signed case bundle</a>
+                    <a class="btn btn-ghost" id="evidence-readme-link" href="#">Download README_EVIDENCE.md</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════ Toast Container ════ -->
+<div id="view-report-view" class="view" style="display:none">
+            <div class="page-header">
+                <div><h2>Interactive Forensic Report</h2><div class="subtitle">Case report preview</div></div>
+                <a class="btn btn-ghost" id="report-download-link" href="#" target="_blank">Open full report</a>
+            </div>
+            <div class="card report-preview-card"><iframe id="report-iframe" title="Forensic report preview"></iframe></div>
+        </div>
+
+    </main>
+</div>
+
+        <div class="toast-container" id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// XtractR SPA Javascript Engine
+// ════════════════════════════════════════════════════════════════
+
+let state = {
+    currentView: 'dashboard',
+    activeCase: null,
+    passphrase: '',
+    searchTimeout: null,
+    receivedVerification: null,
+};
+
+// ── Navigation & View Controllers ──
+
+function esc(value) {
+    const raw = value == null ? '' : (typeof value === 'string' ? value : JSON.stringify(value));
+    return String(raw).replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+}
+
+function formatVerificationValue(value) {
+    if (typeof value === 'string') return value;
+    try { return JSON.stringify(value, null, 2); }
+    catch (_) { return String(value); }
+}
+
+function navigateTo(view) {
+    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+    const el = document.getElementById('view-' + view);
+    if (el) el.style.display = 'block';
+
+    const nav = document.querySelector(`.nav-item[data-view="${view}"]`);
+    if (nav) nav.classList.add('active');
+    if (nav && window.matchMedia('(max-width: 760px)').matches) {
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        nav.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+    }
+
+    state.currentView = view;
+
+    // Trigger data fetchers
+    if (view === 'dashboard') loadCases();
+    if (view === 'artifacts' && state.activeCase) loadArtifacts(1);
+    if (view === 'timeline' && state.activeCase) loadTimeline();
+    if (view === 'custody' && state.activeCase) loadCustodyLog();
+    if (view === 'report-view' && state.activeCase) loadReport();
+    if (view === 'pipeline' && state.activeCase) refreshPipelineState();
+    if (view === 'verify' && state.activeCase) {
+        document.getElementById('verification-results-card').style.display = 'none';
+        loadEvidenceReadmeLink();
+    }
+}
+
+function showCaseNav(show) {
+    const ids = ['case-nav-label', 'nav-pipeline', 'nav-artifacts', 'nav-timeline', 'nav-custody', 'nav-verify', 'nav-report'];
+    ids.forEach(id => {
+        const item = document.getElementById(id);
+        if (item) item.style.display = show ? 'flex' : 'none';
+    });
+    const label = document.getElementById('case-nav-label');
+    if (label) label.style.display = show ? 'block' : 'none';
+}
+
+function selectCase(caseId) {
+    state.activeCase = caseId;
+    showCaseNav(true);
+    navigateTo('pipeline');
+}
+
+// ── API Helper ──
+
+async function api(url, method = 'GET', body = null) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    return res.json();
+}
+
+// ── Cases & History Dashboard ──
+
+async function loadCases() {
+    const data = await api('/api/cases');
+    const grid = document.getElementById('cases-grid');
+    const empty = document.getElementById('no-cases');
+    const cases = Array.isArray(data.cases) ? data.cases : [];
+
+    const totalCases = cases.length;
+    const totalArtifacts = cases.reduce((sum, c) => sum + (c.artifact_count || 0), 0);
+    const sealedCases = cases.filter(c => c.stage === 'exported').length;
+    document.getElementById('stats-cases-count').textContent = totalCases;
+    document.getElementById('stats-artifacts-count').textContent = totalArtifacts;
+    document.getElementById('stats-sealed-count').textContent = sealedCases;
+    document.getElementById('cases-meter').style.width = `${Math.min(100, totalCases * 12)}%`;
+    document.getElementById('artifacts-meter').style.width = `${Math.min(100, totalArtifacts * 2)}%`;
+    document.getElementById('sealed-meter').style.width = totalCases ? `${Math.round(sealedCases / totalCases * 100)}%` : '0%';
+
+    if (totalCases === 0) {
+        grid.innerHTML = '';
+        empty.style.display = 'grid';
+        return;
+    }
+
+    empty.style.display = 'none';
+
+    grid.innerHTML = cases.map(c => `
+        <div class="history-card" data-case-id="${esc(c.case_id)}" onclick="selectCase(this.dataset.caseId)">
+            <div class="history-header">
+                <div class="history-title">${esc(c.case_id)}</div>
+                <span class="type-badge ${badgeClass(c.stage)}">${formatStage(c.stage)}</span>
+            </div>
+            <div class="history-body">
+                <div><strong>Investigator:</strong> ${esc(c.investigator)}</div>
+                <div style="margin-top: 4px; font-size:12px; color:var(--text-secondary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">
+                    <strong>Source:</strong> ${esc(c.source_path || 'None Linked')}
+                </div>
+            </div>
+            <div class="history-actions">
+                <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); selectCase(this.closest('.history-card').dataset.caseId)">
+                    Workspace 🖥️
+                </button>
+                ${c.stage === 'reported' || c.stage === 'exported' ? `
+                    <a class="btn btn-sm btn-primary" onclick="event.stopPropagation();" href="/api/case/${encodeURIComponent(c.case_id)}/report-file" target="_blank" rel="noopener noreferrer">
+                        Open Report 📄
+                    </a>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── Create Case ──
+
+async function createCase(e) {
+    e.preventDefault();
+    const btn = document.getElementById('nc-submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Creating workspace...';
+
+    const caseId = document.getElementById('nc-case-id').value.trim();
+    const investigator = document.getElementById('nc-investigator').value.trim();
+    const passphrase = document.getElementById('nc-passphrase').value;
+
+    try {
+        const data = await api('/api/case/new', 'POST', {
+            case_id: caseId,
+            investigator_name: investigator,
+            passphrase: passphrase,
+        });
+
+        if (data.success) {
+            state.passphrase = passphrase;
+            toast('Protected case workspace created', 'success');
+            selectCase(caseId);
+        } else {
+            toast(data.error || 'Could not create the case workspace', 'error');
+        }
+    } catch (error) {
+        toast(error.message || 'Could not reach the local XtractR service', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Create case workspace <span aria-hidden="true">&#8594;</span>';
+    }
+
+    return false;
+}
+
+// ── Pipeline Runner ──
+
+async function refreshPipelineState() {
+    if (!state.activeCase) return;
+
+    const info = await api(`/api/case/${state.activeCase}/info`);
+    if (!info.success) {
+        toast('Database link error', 'error');
+        return;
+    }
+
+    document.getElementById('pipeline-case-title').textContent = `Workspace — ${info.case_id}`;
+    document.getElementById('pipeline-case-sub').textContent = `Investigator: ${info.investigator} | Partition: ${info.case_dir}`;
+    document.getElementById('artifact-count-badge').textContent = info.artifact_count;
+
+    // Password lock bar check
+    if (!state.passphrase) {
+        document.getElementById('passphrase-bar').style.display = 'flex';
+    } else {
+        document.getElementById('passphrase-bar').style.display = 'none';
+    }
+
+    updateStepper(info.stage);
+    updateActionCard(info.stage);
+    loadPipelineStats();
+}
+
+function setSessionPassphrase() {
+    const val = document.getElementById('session-passphrase').value;
+    if (val) {
+        state.passphrase = val;
+        document.getElementById('passphrase-bar').style.display = 'none';
+        toast('Signing key unlocked for this session', 'success');
+        refreshPipelineState();
+    }
+}
+
+function updateStepper(currentStage) {
+    const steps = document.querySelectorAll('#pipeline-stepper .pipeline-step');
+    const currentIdx = STAGE_ORDER.indexOf(currentStage);
+
+    steps.forEach((step, i) => {
+        step.classList.remove('completed', 'active');
+        if (i < currentIdx) {
+            step.classList.add('completed');
+            step.querySelector('.step-indicator').textContent = '✓';
+        } else if (i === currentIdx) {
+            step.classList.add('active');
+            step.querySelector('.step-indicator').textContent = i + 1;
+        } else {
+            step.querySelector('.step-indicator').textContent = i + 1;
+        }
+    });
+}
+
+function updateActionCard(stage) {
+    const title = document.getElementById('pipeline-action-title');
+    const buttons = document.getElementById('pipeline-action-buttons');
+    const ingestForm = document.getElementById('ingest-form');
+    const exportOptions = document.getElementById('export-options');
+
+    ingestForm.style.display = 'none';
+    exportOptions.style.display = 'none';
+    buttons.innerHTML = '';
+
+    const nextStage = getNextAction(stage);
+
+    if (!nextStage) {
+        title.textContent = 'Case bundle exported & sealed';
+        buttons.innerHTML = '<span style="color:var(--accent-green); font-weight:700;">&#10003; Signature and integrity seal created</span>';
+        return;
+    }
+
+    if (nextStage === 'ingest') {
+        title.textContent = 'Ingest Device Image / Logical Directory';
+        ingestForm.style.display = 'block';
+    } else {
+        if (nextStage === 'export') exportOptions.style.display = 'block';
+        const labels = {
+            scan: 'Run Integrity Baseline Scan',
+            plugins: 'Execute Extraction Plugins',
+            process: 'Generate Timelines & Correlation Analysis',
+            report: 'Generate PDF/HTML Forensic Report',
+            export: 'Finalize Cryptographic Manifests & Export Case Zip',
+        };
+        title.textContent = labels[nextStage] || nextStage;
+        buttons.innerHTML = `
+            <button class="btn btn-primary" onclick="runPipelineStage('${nextStage}')">
+                Run: ${nextStage.toUpperCase()} ▶
+            </button>
+        `;
+    }
+}
+
+async function runIngest() {
+    const source = document.getElementById('ingest-source').value.trim();
+    if (!source) { toast('Please input path to evidence source', 'error'); return; }
+
+    const data = await api(`/api/case/${state.activeCase}/ingest`, 'POST', {
+        source_path: source,
+        passphrase: state.passphrase,
+    });
+
+    if (data.success) {
+        toast('Evidence linked and logged in chain-of-custody', 'success');
+        refreshPipelineState();
+    } else {
+        toast(data.error || 'Link failure', 'error');
+    }
+}
+
+async function runPipelineStage(stage) {
+    const endpointMap = {
+        scan: 'scan',
+        plugins: 'run-plugins',
+        process: 'process',
+        report: 'report',
+        export: 'export',
+    };
+
+    const endpoint = endpointMap[stage];
+    if (!endpoint) return;
+
+    if (!state.passphrase) {
+        toast('Signing key is locked. Enter its passphrase to continue.', 'error');
+        return;
+    }
+
+    document.getElementById('pipeline-action-buttons').innerHTML = '<span class="spinner"></span> Processing...';
+
+    const console_ = document.getElementById('pipeline-console');
+    console_.style.display = 'block';
+    console_.innerHTML = '';
+
+    const data = await api(`/api/case/${state.activeCase}/${endpoint}`, 'POST', {
+        passphrase: state.passphrase,
+        include_evidence: stage === 'export' ? document.getElementById('include-evidence-files').checked : undefined,
+    });
+
+    if (!data.success) {
+        toast(data.error || 'Initialization failure', 'error');
+        refreshPipelineState();
+        return;
+    }
+
+    const eventSource = new EventSource(`/api/task/${data.task_id}/stream`);
+
+    eventSource.onmessage = function(event) {
+        const msg = JSON.parse(event.data);
+        appendConsole(console_, msg);
+
+        if (msg.type === 'complete') {
+            eventSource.close();
+            if (msg.result && msg.result.success) {
+                toast(`Stage: ${stage.toUpperCase()} completed successfully`, 'success');
+            } else {
+                toast(msg.result?.error || 'Execution failed', 'error');
+            }
+            refreshPipelineState();
+        }
+
+        if (msg.type === 'error') {
+            eventSource.close();
+            toast(msg.message || 'Execution error', 'error');
+            refreshPipelineState();
+        }
+    };
+
+    eventSource.onerror = function() {
+        eventSource.close();
+        refreshPipelineState();
+    };
+}
+
+// ── Artifact Explorer ──
+
+async function loadArtifacts(page) {
+    if (!state.activeCase) return;
+
+    const type = document.getElementById('filter-type').value;
+    const search = document.getElementById('filter-search').value;
+
+    let url = `/api/case/${state.activeCase}/artifacts?page=${page}&per_page=50`;
+    if (type) url += `&type=${encodeURIComponent(type)}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+
+    const data = await api(url);
+    if (!data.success) return;
+
+    // Load filter categories
+    const filterType = document.getElementById('filter-type');
+    if (filterType.children.length <= 1 && data.artifact_types) {
+        data.artifact_types.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            filterType.appendChild(opt);
+        });
+    }
+
+    document.getElementById('artifacts-subtitle').textContent =
+        `Discovered ${data.total} entries | Page ${data.page} of ${data.total_pages}`;
+
+    const tbody = document.getElementById('artifacts-tbody');
+    tbody.innerHTML = data.artifacts.map((a, i) => `
+        <tr onclick="toggleDetail(this, ${i})" style="cursor:pointer">
+            <td><span class="type-badge ${badgeClass(a.artifact_type)}">${esc(a.artifact_type)}</span></td>
+            <td class="mono">${formatTimestamp(a.timestamp_utc)}</td>
+            <td>${esc(a.actor || '—')}</td>
+            <td class="mono" style="max-width:260px;overflow:hidden;text-overflow:ellipsis">${esc(a.source_path || '')}</td>
+            <td>${formatConfidence(a.confidence)}</td>
+            <td style="font-size:10px;color:var(--text-secondary)">▼</td>
+        </tr>
+        <tr class="detail-row" id="detail-${i}" style="display:none">
+            <td colspan="6">
+                <div class="detail-panel">${JSON.stringify(a.details, null, 2)}</div>
+            </td>
+        </tr>
+    `).join('');
+
+    renderPagination(data.page, data.total_pages);
+}
+
+// ── Timeline & Correlation Heatmaps ──
+
+async function loadTimeline() {
+    if (!state.activeCase) return;
+
+    const data = await api(`/api/case/${state.activeCase}/timeline`);
+    if (!data.success) {
+        document.getElementById('timeline-charts').innerHTML = `
+            <div class="empty-state">
+                <div class="icon">📅</div>
+                <h3>Timeline Not Generated</h3>
+                <p>Run the Timeline & Correlation stage in the Pipeline to render heatmaps.</p>
+            </div>`;
+        return;
+    }
+
+    const hourBuckets = new Array(24).fill(0);
+    const typeCounts = {};
+    const entries = data.entries || [];
+
+    entries.forEach(e => {
+        const ts = e.timestamp_utc || e.timestamp;
+        if (ts && parseInt(ts) > 0) {
+            const date = new Date(parseInt(ts));
+            if (!isNaN(date.getTime())) {
+                hourBuckets[date.getUTCHours()]++;
+            }
+        }
+        const t = e.artifact_type || e.type || 'UNKNOWN';
+        typeCounts[t] = (typeCounts[t] || 0) + 1;
+    });
+
+    const maxHour = Math.max(...hourBuckets, 1);
+    const colors = ['#007aff', '#34c759', '#af52de', '#ff9500', '#ff3b30', '#5ac8fa', '#ff2d55', '#5856d6'];
+
+    document.getElementById('timeline-charts').innerHTML = `
+        <div class="card">
+            <div class="card-header"><div class="card-title">Hourly UTC Activity Density</div></div>
+            <div style="display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:10px">
+                ${hourBuckets.map((count, h) => `
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+                        <div style="background:var(--accent-blue-gradient);width:100%;border-radius:4px 4px 0 0;
+                                    height:${(count/maxHour)*100}px;min-height:4px;transition:height 0.8s;
+                                    opacity:${count ? 1 : 0.2}"></div>
+                        <span style="font-size:9px;color:var(--text-secondary)">${h}h</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><div class="card-title">Forensic Density distribution</div></div>
+            ${Object.entries(typeCounts).sort((a,b) => b[1]-a[1]).slice(0, 5).map(([type, count], i) => `
+                <div class="chart-bar">
+                    <div class="chart-bar-label">${type}</div>
+                    <div class="chart-bar-fill" style="width:${(count/entries.length)*100}%;
+                         background:${colors[i % colors.length]};"></div>
+                    <div class="chart-bar-value">${count}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    // Timeline Correlation Warning Panel
+    if (data.correlation && Object.keys(data.correlation).length > 0) {
+        const corr = data.correlation;
+        const corrDiv = document.getElementById('timeline-correlation');
+        corrDiv.style.display = 'block';
+
+        let corrHtml = '';
+        if (corr.top_communicators && corr.top_communicators.length > 0) {
+            corrHtml += '<div style="margin-bottom:16px"><strong>Principal Communicators:</strong><br>';
+            corr.top_communicators.forEach(c => {
+                corrHtml += `<span class="type-badge default" style="margin:4px">${esc(c.actor || c[0])}: ${c.count || c[1]} records</span> `;
+            });
+            corrHtml += '</div>';
+        }
+        if (corr.gaps && corr.gaps.length > 0) {
+            corrHtml += '<div><strong>Suspicious Silence Intervals (Gaps):</strong><br>';
+            corr.gaps.forEach(g => {
+                corrHtml += `<div style="margin:6px 0;font-size:13px;color:var(--accent-amber); display:flex; align-items:center; gap:8px;">
+                    <span>⚠</span> <span>${esc(g.start || g[0])} ➔ ${esc(g.end || g[1])} (${g.duration_hours || '?'} hours duration)</span>
+                </div>`;
+            });
+            corrHtml += '</div>';
+        } else {
+            corrHtml += '<div><strong>Inactivity Gap Analysis:</strong> No suspicious inactivity windows identified.</div>';
+        }
+        document.getElementById('correlation-content').innerHTML = corrHtml;
+    }
+
+    // Load timeline table
+    const tbody = document.getElementById('timeline-tbody');
+    tbody.innerHTML = entries.slice(0, 300).map(e => `
+        <tr>
+            <td class="mono">${formatTimestamp(e.timestamp_utc || e.timestamp)}</td>
+            <td><span class="type-badge ${badgeClass(e.artifact_type || e.type)}">${esc(e.artifact_type || e.type || '')}</span></td>
+            <td>${esc(e.actor || '—')}</td>
+            <td style="max-width:350px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(e.summary || e.details || '')}</td>
+            <td class="mono" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(e.source_path || e.source || '')}</td>
+        </tr>
+    `).join('');
+}
+
+// ── Cryptographic Verification Checklist ──
+
+async function loadEvidenceReadmeLink() {
+    const card = document.getElementById('evidence-export-card');
+    const [readmeResponse, bundleResponse] = await Promise.all([
+        fetch(`/api/case/${state.activeCase}/evidence-readme`, { method: 'HEAD' }),
+        fetch(`/api/case/${state.activeCase}/latest-export`, { method: 'HEAD' }),
+    ]);
+    card.style.display = readmeResponse.ok || bundleResponse.ok ? 'block' : 'none';
+    document.getElementById('evidence-readme-link').href = `/api/case/${state.activeCase}/evidence-readme`;
+    document.getElementById('case-bundle-link').href = `/api/case/${state.activeCase}/latest-export`;
+}
+
+async function runIntegrityVerification() {
+    if (!state.activeCase) return;
+    const btn = document.getElementById('run-verification-btn');
+    const resultCard = document.getElementById('verification-results-card');
+    const container = document.getElementById('verification-checklist-container');
+    const badge = document.getElementById('verification-status-badge');
+    const summary = document.getElementById('verification-summary');
+    btn.disabled = true;
+    btn.textContent = 'Checking case...';
+    resultCard.style.display = 'block';
+    container.innerHTML = '<div class="verification-loading"><span class="spinner"></span> Hashing and validating case data. Large evidence sources may take time.</div>';
+    summary.textContent = 'Verification in progress';
+    try {
+        const data = await api(`/api/case/${state.activeCase}/verify`, 'POST', {
+            expected_fingerprint: document.getElementById('expected-fingerprint').value.trim(),
+            check_evidence: document.getElementById('verify-original-evidence').checked,
+        });
+        if (!data.success) throw new Error(data.error || 'Verification could not be completed');
+        const states = {
+            verified: ['VERIFIED', 'contact'],
+            internally_consistent: ['CONSISTENT - REVIEW WARNINGS', 'default'],
+            failed: ['FAILED - REVIEW FINDINGS', 'app'],
+        };
+        const [label, color] = states[data.overall] || states.failed;
+        badge.className = `type-badge ${color} verification-badge`;
+        badge.textContent = label;
+        const counts = data.summary || {};
+        summary.textContent = `${counts.passed || 0} passed | ${counts.warnings || 0} warnings | ${counts.failed || 0} failed | ${counts.checks || 0} checks`;
+        container.innerHTML = (data.steps || []).map(step => {
+            const status = ['passed', 'warning', 'failed', 'info'].includes(step.status) ? step.status : 'failed';
+            const stateLabel = { passed: 'PASS', warning: 'REVIEW', failed: 'FAIL', info: 'INFO' }[status];
+            const issues = (step.issues || []).map(issue => `
+                <div class="verification-issue">
+                    <div class="issue-location"><span>Location</span><code>${esc(issue.location || step.location || 'Not specified')}</code></div>
+                    <div class="issue-message">${esc(issue.message || 'Check did not match the expected value.')}</div>
+                    ${(issue.expected !== undefined || issue.actual !== undefined) ? `<div class="issue-values">${issue.expected !== undefined ? `<div><span>Expected</span><code>${esc(formatVerificationValue(issue.expected))}</code></div>` : ''}${issue.actual !== undefined ? `<div><span>Found</span><code>${esc(formatVerificationValue(issue.actual))}</code></div>` : ''}</div>` : ''}
+                </div>`).join('');
+            return `<article class="verification-check ${status}">
+                <div class="check-main">
+                    <div class="check-copy"><div class="check-title">${esc(step.name)}</div><div class="check-message">${esc(step.message)}</div><div class="check-location">${step.location ? `Scope: <code>${esc(step.location)}</code>` : ''}</div></div>
+                    <span class="check-state ${status}">${stateLabel}</span>
+                </div>${issues ? `<div class="verification-issues">${issues}</div>` : ''}
+            </article>`;
+        }).join('') || '<div class="empty-state">No checks were returned.</div>';
+        toast(data.overall === 'failed' ? 'Verification found issues. Review the locations below.' : data.overall === 'verified' ? 'Verification passed with a pinned signer.' : 'Checks completed. Signer identity or timestamp trust is not fully established.', data.overall === 'failed' ? 'error' : 'info');
+    } catch (error) {
+        badge.className = 'type-badge app verification-badge';
+        badge.textContent = 'CHECK FAILED';
+        summary.textContent = 'The verification request did not complete.';
+        container.innerHTML = `<div class="verification-issue"><div class="issue-message">${esc(error.message || String(error))}</div></div>`;
+        toast('Verification could not complete', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run verification';
+    }
+}
+
+function formatBytes(value) {
+    if (!Number.isFinite(value) || value < 0) return 'Unknown size';
+    if (value < 1024) return `${value} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let size = value / 1024;
+    let unit = units[0];
+    for (let index = 1; size >= 1024 && index < units.length; index++) {
+        size /= 1024;
+        unit = units[index];
+    }
+    return `${size.toFixed(size >= 10 ? 0 : 1)} ${unit}`;
+}
+
+function updateReceivedBundleSelection() {
+    const input = document.getElementById('received-bundle-file');
+    const form = document.getElementById('received-bundle-form');
+    const button = document.getElementById('verify-received-btn');
+    const label = document.getElementById('bundle-file-label');
+    const meta = document.getElementById('bundle-file-meta');
+    const file = input.files && input.files[0];
+    const maxBytes = Number(form.dataset.maxUploadBytes) || 8 * 1024 ** 3;
+
+    button.disabled = !file || file.size > maxBytes || !file.name.toLowerCase().endsWith('.zip');
+    if (!file) {
+        label.textContent = "Drop the sender's XtractR ZIP here";
+        meta.textContent = 'No bundle selected';
+        return;
+    }
+    label.textContent = file.name;
+    meta.textContent = `${formatBytes(file.size)}${file.size > maxBytes ? ' · exceeds the upload limit' : ''}`;
+    if (!file.name.toLowerCase().endsWith('.zip')) toast('Choose an XtractR .zip export', 'error');
+    else if (file.size > maxBytes) toast(`This archive is larger than ${formatBytes(maxBytes)}`, 'error');
+}
+
+function initializeReceivedBundleInput() {
+    const input = document.getElementById('received-bundle-file');
+    const dropzone = document.getElementById('bundle-dropzone');
+    if (!input || !dropzone) return;
+    input.addEventListener('change', updateReceivedBundleSelection);
+    ['dragenter', 'dragover'].forEach(name => dropzone.addEventListener(name, event => {
+        event.preventDefault();
+        dropzone.classList.add('is-dragging');
+    }));
+    ['dragleave', 'drop'].forEach(name => dropzone.addEventListener(name, event => {
+        event.preventDefault();
+        dropzone.classList.remove('is-dragging');
+    }));
+    dropzone.addEventListener('drop', event => {
+        if (!event.dataTransfer.files.length) return;
+        input.files = event.dataTransfer.files;
+        updateReceivedBundleSelection();
+    });
+}
+
+async function verifyReceivedBundle(event) {
+    event.preventDefault();
+    const input = document.getElementById('received-bundle-file');
+    const form = document.getElementById('received-bundle-form');
+    const button = document.getElementById('verify-received-btn');
+    const results = document.getElementById('received-results');
+    const headline = document.getElementById('received-results-headline');
+    const file = input.files && input.files[0];
+    const maxBytes = Number(form.dataset.maxUploadBytes) || 8 * 1024 ** 3;
+    if (!file) { toast('Choose the sender’s XtractR ZIP first', 'error'); return false; }
+    if (file.size > maxBytes) { toast('The selected ZIP exceeds the upload limit', 'error'); return false; }
+
+    const body = new FormData();
+    body.append('bundle', file, file.name);
+    body.append('expected_fingerprint', document.getElementById('received-expected-fingerprint').value.trim());
+    body.append('check_evidence', document.getElementById('received-check-evidence').checked ? 'true' : 'false');
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner" aria-hidden="true"></span> Uploading bundle...';
+    results.style.display = 'block';
+    document.getElementById('received-checks').innerHTML = '<div class="verification-loading"><span class="spinner"></span> Uploading the bundle and starting independent checks…</div>';
+    document.getElementById('received-results-summary').textContent = `${file.name} · ${formatBytes(file.size)}`;
+    headline.textContent = 'Verification is running. Large evidence payloads can take several minutes to hash.';
+    document.getElementById('received-status-badge').textContent = 'IN PROGRESS';
+    document.getElementById('received-status-badge').className = 'type-badge default verification-badge';
+    document.getElementById('download-received-report').style.display = 'none';
+
+    try {
+        const started = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/verify-bundle');
+            xhr.upload.addEventListener('progress', uploadEvent => {
+                if (!uploadEvent.lengthComputable) return;
+                const percent = Math.floor(uploadEvent.loaded / uploadEvent.total * 100);
+                button.innerHTML = `<span class="spinner" aria-hidden="true"></span> Uploading ${percent}%`;
+                headline.textContent = `Uploading bundle to the local verifier: ${percent}% (${formatBytes(uploadEvent.loaded)} of ${formatBytes(uploadEvent.total)}).`;
+            });
+            xhr.addEventListener('load', () => {
+                let payload;
+                try { payload = JSON.parse(xhr.responseText); } catch (_) { payload = {}; }
+                if (xhr.status < 200 || xhr.status >= 300 || !payload.success) {
+                    reject(new Error(payload.error || `Upload failed with HTTP ${xhr.status}`));
+                    return;
+                }
+                resolve(payload);
+            });
+            xhr.addEventListener('error', () => reject(new Error('The upload connection ended before the bundle reached XtractR.')));
+            xhr.send(body);
+        });
+        button.innerHTML = '<span class="spinner" aria-hidden="true"></span> Checking archive...';
+        headline.textContent = 'Upload complete. Verifying the signed manifest, case seal, and included evidence bytes…';
+        const stream = new EventSource(`/api/task/${encodeURIComponent(started.task_id)}/stream`);
+        let finished = false;
+        stream.onmessage = message => {
+            let item;
+            try { item = JSON.parse(message.data); } catch (_) { return; }
+            if (item.type === 'progress') {
+                headline.textContent = item.message || 'Checking the signed export and included evidence…';
+            } else if (item.type === 'complete') {
+                finished = true;
+                stream.close();
+                showReceivedVerification(item.result || {});
+                button.disabled = false;
+                button.innerHTML = 'Verify received bundle <span aria-hidden="true">&#8594;</span>';
+            } else if (item.type === 'error') {
+                finished = true;
+                stream.close();
+                showReceivedVerificationError(item.message || 'The verifier stopped unexpectedly.');
+                button.disabled = false;
+                button.innerHTML = 'Verify received bundle <span aria-hidden="true">&#8594;</span>';
+            }
+        };
+        stream.onerror = () => {
+            if (finished) return;
+            finished = true;
+            stream.close();
+            showReceivedVerificationError('The verification stream ended before a result arrived. Try the check again.');
+            button.disabled = false;
+            button.innerHTML = 'Verify received bundle <span aria-hidden="true">&#8594;</span>';
+        };
+    } catch (error) {
+        showReceivedVerificationError(error.message || 'Could not reach the local verifier.');
+        button.disabled = false;
+        button.innerHTML = 'Verify received bundle <span aria-hidden="true">&#8594;</span>';
+    }
+    return false;
+}
+
+function showReceivedVerification(result) {
+    state.receivedVerification = result;
+    const states = {
+        verified: ['INTEGRITY + SIGNER CONFIRMED', 'contact'],
+        internally_consistent: ['INTEGRITY CONSISTENT · REVIEW WARNINGS', 'review'],
+        failed: ['FAILED · REVIEW FINDINGS', 'app'],
+    };
+    const [label, color] = states[result.overall] || states.failed;
+    const badge = document.getElementById('received-status-badge');
+    badge.className = `type-badge ${color} verification-badge`;
+    badge.textContent = label;
+    const counts = result.summary || {};
+    document.getElementById('received-results-summary').textContent = `${result.case_id || 'Unknown case'} · ${result.bundle_name || 'received bundle'} · ${counts.passed || 0} passed / ${counts.warnings || 0} warnings / ${counts.failed || 0} failed`;
+    document.getElementById('received-results-headline').textContent = result.headline || 'Review the results below.';
+    document.getElementById('received-checks').innerHTML = (result.steps || []).map(step => {
+        const status = ['passed', 'warning', 'failed', 'info'].includes(step.status) ? step.status : 'failed';
+        const stateLabel = { passed: 'PASS', warning: 'REVIEW', failed: 'FAIL', info: 'INFO' }[status];
+        const issues = (step.issues || []).map(issue => `
+            <div class="verification-issue">
+                <div class="issue-location"><span>Location</span><code>${esc(issue.location || step.location || 'Not specified')}</code></div>
+                <div class="issue-message">${esc(issue.message || 'Check did not match the expected value.')}</div>
+                ${(issue.expected !== undefined || issue.actual !== undefined) ? `<div class="issue-values">${issue.expected !== undefined ? `<div><span>Expected</span><code>${esc(formatVerificationValue(issue.expected))}</code></div>` : ''}${issue.actual !== undefined ? `<div><span>Found</span><code>${esc(formatVerificationValue(issue.actual))}</code></div>` : ''}</div>` : ''}
+            </div>`).join('');
+        return `<article class="verification-check ${status}">
+            <div class="check-main"><div class="check-copy"><div class="check-title">${esc(step.name)}</div><div class="check-message">${esc(step.message)}</div><div class="check-location">${step.location ? `Scope: <code>${esc(step.location)}</code>` : ''}</div></div><span class="check-state ${status}">${stateLabel}</span></div>
+            ${issues ? `<div class="verification-issues">${issues}</div>` : ''}
+        </article>`;
+    }).join('') || '<div class="verification-issue"><div class="issue-message">No verification checks were returned.</div></div>';
+    document.getElementById('download-received-report').style.display = 'inline-flex';
+    toast(result.overall === 'failed' ? 'Bundle verification found failures' : result.overall === 'verified' ? 'Bundle and trusted signer verified' : 'Integrity checks finished; review trust warnings', result.overall === 'failed' ? 'error' : result.overall === 'verified' ? 'success' : 'info');
+}
+
+function showReceivedVerificationError(message) {
+    const badge = document.getElementById('received-status-badge');
+    badge.className = 'type-badge app verification-badge';
+    badge.textContent = 'CHECK DID NOT COMPLETE';
+    document.getElementById('received-results-headline').textContent = message;
+    document.getElementById('received-checks').innerHTML = `<div class="verification-issue"><div class="issue-message">${esc(message)}</div></div>`;
+}
+
+function downloadReceivedReport() {
+    if (!state.receivedVerification) return;
+    const report = { format: 'xtractr-recipient-verification-v1', generated_at: new Date().toISOString(), ...state.receivedVerification };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const base = String(report.case_id || 'received-bundle').replace(/[^A-Za-z0-9._-]/g, '_');
+    link.href = url;
+    link.download = `${base}-verification-report.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+async function loadCustodyLog() {
+    if (!state.activeCase) return;
+
+    const data = await api(`/api/case/${state.activeCase}/custody-log`);
+    if (!data.success) return;
+
+    const tbody = document.getElementById('custody-tbody');
+    tbody.innerHTML = (data.events || []).map(e => `
+        <tr>
+            <td><strong>${e.id}</strong></td>
+            <td class="mono">${formatTimestamp(e.timestamp)}</td>
+            <td><span class="type-badge default" style="font-size:11px;">${esc(e.event_type || '')}</span></td>
+            <td style="max-width:350px;">${esc(e.description || '')}</td>
+            <td>👤 ${esc(e.actor || 'SYSTEM')}</td>
+            <td class="mono" style="font-size:11px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                ${esc(e.entry_hash || '—')}
+            </td>
+        </tr>
+    `).join('');
+}
+
+// ── Interactive Report Preview ──
+
+function loadReport() {
+    if (!state.activeCase) return;
+    const iframe = document.getElementById('report-iframe');
+    const link = document.getElementById('report-download-link');
+    const url = `/api/case/${state.activeCase}/report-file`;
+    iframe.src = url;
+    link.href = url;
+}
+
+// ── Rendering Helpers ──
+
+function formatTimestamp(ts) {
+    if (!ts || ts <= 0) return '—';
+    try {
+        const ms = parseInt(ts);
+        if (ms > 1e15) {
+            // Chrome timestamp (microseconds)
+            const date = new Date((ms / 1000000) - 11644473600000);
+            return date.toISOString().replace('T', ' ').slice(0, 19);
+        }
+        if (ms > 1e12) {
+            // Standard millisecond epoch
+            return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+        }
+        // Second epoch
+        return new Date(ms * 1000).toISOString().replace('T', ' ').slice(0, 19);
+    } catch {
+        return String(ts);
+    }
+}
+
+function formatConfidence(c) {
+    if (c == null) return '—';
+    const pct = Math.round(c * 100);
+    let color = 'var(--accent-green)';
+    if (pct < 75) color = 'var(--accent-amber)';
+    if (pct < 50) color = 'var(--accent-red)';
+    return `<span style="color:${color}; font-weight:700">${pct}%</span>`;
+}
+
+function badgeClass(stage) {
+    if (stage === 'exported') return 'contact';
+    if (stage === 'reported') return 'web';
+    if (stage === 'processed') return 'call';
+    if (stage === 'plugins_done') return 'sms';
+    if (stage === 'scanned') return 'media';
+    if (stage === 'ingested') return 'account';
+    return 'default';
+}
+
+function toast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `
+        <span style="font-weight:700;">${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</span>
+        <span>${esc(message)}</span>
+    `;
+    container.appendChild(el);
+    setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(100px) scale(0.9)';
+        el.style.transition = 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)';
+        setTimeout(() => el.remove(), 400);
+    }, 4500);
+}
+
+// Global order of stages matching backend logic
+const STAGE_ORDER = ['initialized', 'ingested', 'scanned', 'plugins_done', 'processed', 'reported', 'exported'];
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadCases();
+    initializeReceivedBundleInput();
+    // Give reviewers and recipients a stable, direct entry point to the verifier.
+    if (new URLSearchParams(window.location.search).get('view') === 'received-verification') {
+        navigateTo('received-verification');
+    }
+});
+</script>
+
+</body>
+</html>

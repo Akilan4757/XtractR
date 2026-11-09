@@ -12,7 +12,7 @@ from typing import Optional
 logger = logging.getLogger("xtractr.tsa")
 
 # Default public TSA endpoint
-DEFAULT_TSA_URL = "https://freetsa.org/tsr"
+DEFAULT_TSA_URL = os.environ.get("XTRACTR_TSA_URL", "https://freetsa.org/tsr")
 
 
 class TSAClient:

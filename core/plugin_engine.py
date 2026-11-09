@@ -13,15 +13,15 @@ import os
 import sys
 import platform
 import importlib
-import inspect
 import logging
-import traceback
 import time
 import json
 import uuid
 import hashlib
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor, TimeoutError as FuturesTimeoutError
+import ast
+from queue import Empty as QueueEmpty
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import List, Dict, Type, Tuple, Any, Optional
 from .plugin_interface import BasePlugin, Artifact
 from .artifact_validator import validate_artifact_batch
@@ -36,6 +36,13 @@ MAX_CPU_SECONDS = 30                    # 30s CPU time
 MAX_WALL_SECONDS = 45                   # 45s wall clock (allows for I/O wait beyond CPU)
 MAX_ARTIFACT_COUNT = 100_000            # Per plugin
 MAX_OUTPUT_BYTES = 100 * 1024 * 1024    # 100 MB cumulative artifact details size
+
+
+def _plugin_process_entry(result_queue, *worker_args):
+    try:
+        result_queue.put((True, _run_plugin_isolated(*worker_args)))
+    except BaseException as exc:
+        result_queue.put((False, f"{type(exc).__name__}: {exc}"))
 
 
 def _apply_resource_limits():
@@ -62,15 +69,14 @@ def _run_plugin_isolated(
     plugin_class_name: str,
     source_path: str,
     context: Dict[str, Any],
-    plugin_dir: str
+    plugin_dir: str,
+    expected_hash: str,
+    filepath: str
 ) -> Dict[str, Any]:
     """
     Worker function executed in a child process.
     Reconstructs VFS, instantiates plugin, runs parse(), returns results.
-    
-    Returns dict with keys: status, artifacts (list of dicts), error_msg, artifact_count
     """
-    # Apply resource limits before any plugin code runs
     _apply_resource_limits()
     
     result = {
@@ -78,10 +84,26 @@ def _run_plugin_isolated(
         "artifacts": [],
         "error_msg": "",
         "artifact_count": 0,
-        "cumulative_bytes": 0
+        "cumulative_bytes": 0,
+        "errors": []
     }
     
     try:
+        # TOCTOU protection: verify hash inside child process before import
+        h = hashlib.sha256()
+        with open(filepath, "rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    break
+                h.update(chunk)
+        current_hash = h.hexdigest()
+        
+        if current_hash != expected_hash:
+            result["status"] = "TAMPERED"
+            result["error_msg"] = "Plugin source file modified since discovery"
+            return result
+
         # Ensure plugin directory is importable
         parent_dir = os.path.dirname(plugin_dir)
         if parent_dir not in sys.path:
@@ -109,6 +131,9 @@ def _run_plugin_isolated(
             result["error_msg"] = "Plugin returned invalid type (expected list)"
             return result
         
+        # Capture internal plugin errors
+        result["errors"] = getattr(plugin, "errors", [])
+        
         # Enforce output size limits
         serialized_artifacts = []
         cumulative_bytes = 0
@@ -118,6 +143,9 @@ def _run_plugin_isolated(
                 result["status"] = "RESOURCE_LIMIT"
                 result["error_msg"] = f"Exceeded MAX_ARTIFACT_COUNT ({MAX_ARTIFACT_COUNT})"
                 break
+            
+            if not getattr(art, "reference_hash", None) or art.reference_hash == "UNKNOWN":
+                art.reference_hash = plugin.get_reference_hash(vfs, art.source_path)
             
             art_dict = art.to_dict()
             art_bytes = len(json.dumps(art_dict, default=str))
@@ -170,6 +198,52 @@ def _deserialize_artifacts(artifact_dicts: List[Dict]) -> List[Artifact]:
     return artifacts
 
 
+def _static_discover_plugin(filepath: str) -> Optional[Dict[str, Any]]:
+    """Statically parse a plugin file using AST to extract NAME, VERSION, and class_name."""
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            node = ast.parse(f.read(), filename=filepath)
+        
+        for child in node.body:
+            if isinstance(child, ast.ClassDef):
+                name_val = None
+                version_val = None
+                for sub in child.body:
+                    if isinstance(sub, ast.Assign):
+                        for target in sub.targets:
+                            if isinstance(target, ast.Name):
+                                if target.id == "NAME":
+                                    if isinstance(sub.value, ast.Constant):
+                                        name_val = sub.value.value
+                                    elif isinstance(sub.value, ast.Str):
+                                        name_val = sub.value.s
+                                elif target.id == "VERSION":
+                                    if isinstance(sub.value, ast.Constant):
+                                        version_val = sub.value.value
+                                    elif isinstance(sub.value, ast.Str):
+                                        version_val = sub.value.s
+                                    
+                if name_val is not None:
+                    return {
+                        "class_name": child.name,
+                        "NAME": name_val,
+                        "VERSION": version_val or "1.0.0"
+                    }
+    except Exception as e:
+        logger.error(f"AST parsing failed for {filepath}: {e}")
+    return None
+
+
+class PluginInfo:
+    """Lightweight metadata class for discovered plugins."""
+    def __init__(self, name: str, version: str, class_name: str, module_name: str, filepath: str):
+        self.NAME = name
+        self.VERSION = version
+        self.class_name = class_name
+        self.module_name = module_name
+        self.filepath = filepath
+
+
 class PluginEngine:
     """
     Manages discovery and execution of XtractR plugins.
@@ -181,11 +255,8 @@ class PluginEngine:
     def __init__(self, plugin_dir: str, db: CaseDatabase):
         self.plugin_dir = plugin_dir
         self.db = db
-        self.plugins: List[Type[BasePlugin]] = []
+        self.plugins: List[PluginInfo] = []
         self._plugin_hashes: Dict[str, str] = {}
-        self._plugin_filepaths: Dict[str, str] = {}  # NAME -> absolute filepath
-        self._plugin_module_info: Dict[str, Tuple[str, str]] = {}  # NAME -> (module_name, class_name)
-        self._source_path: Optional[str] = None  # Set during run_all
         self._discover_plugins()
 
     def _hash_plugin_source(self, filepath: str) -> str:
@@ -201,11 +272,10 @@ class PluginEngine:
 
     def _discover_plugins(self):
         """
-        Scan plugin_dir for valid BasePlugin implementations.
+        Scan plugin_dir for BasePlugin implementations using static AST parsing.
         INV-002: Sorted discovery for deterministic execution order.
         """
-        logger.info(f"Scanning for plugins in {self.plugin_dir}...")
-        sys.path.insert(0, os.path.dirname(self.plugin_dir))
+        logger.info(f"Scanning for plugins in {self.plugin_dir} (Static AST Mode)...")
         
         # INV-002: Sort filenames for deterministic plugin loading order
         filenames = sorted(os.listdir(self.plugin_dir))
@@ -215,61 +285,96 @@ class PluginEngine:
                 module_name = f"plugins.{filename[:-3]}"
                 filepath = os.path.join(self.plugin_dir, filename)
                 try:
-                    module = importlib.import_module(module_name)
-                    for name, obj in inspect.getmembers(module):
-                        if inspect.isclass(obj) and issubclass(obj, BasePlugin) and obj is not BasePlugin:
-                            logger.info(f"Loaded Plugin: {obj.NAME} ({obj.VERSION})")
-                            self.plugins.append(obj)
-                            self._plugin_hashes[obj.NAME] = self._hash_plugin_source(filepath)
-                            self._plugin_filepaths[obj.NAME] = os.path.abspath(filepath)
-                            self._plugin_module_info[obj.NAME] = (module_name, name)
+                    info = _static_discover_plugin(filepath)
+                    if info:
+                        plugin_info = PluginInfo(
+                            name=info["NAME"],
+                            version=info["VERSION"],
+                            class_name=info["class_name"],
+                            module_name=module_name,
+                            filepath=os.path.abspath(filepath)
+                        )
+                        logger.info(f"Statically loaded plugin metadata: {plugin_info.NAME} ({plugin_info.VERSION})")
+                        self.plugins.append(plugin_info)
+                        self._plugin_hashes[plugin_info.NAME] = self._hash_plugin_source(filepath)
                 except Exception as e:
-                    logger.error(f"Failed to load plugin {filename}: {e}")
+                    logger.error(f"Failed to statically load plugin {filename}: {e}")
                     self.db.log_event("PLUGIN_LOAD_FAIL", f"{filename}: {e}")
         
         # INV-002: Sort plugins by NAME for deterministic execution order
-        self.plugins.sort(key=lambda cls: cls.NAME)
+        self.plugins.sort(key=lambda p: p.NAME)
 
-    def run_all(self, vfs: BaseVFS, context: Dict = {}) -> List[Artifact]:
+    def run_all(self, vfs: BaseVFS, context: Optional[Dict] = None) -> List[Artifact]:
         """
         Execute all capable plugins in isolated child processes.
-        
-        Each plugin gets:
-          - Separate OS process (memory isolation)
-          - 512 MB memory cap (RLIMIT_AS)
-          - 30s CPU cap (RLIMIT_CPU) + 45s wall-clock timeout
-          - 100,000 artifact count limit
-          - 100 MB output size limit
         """
+        context = context or {}
         all_artifacts = []
         source_path = vfs.source_path
         
-        for plugin_cls in self.plugins:
+        # Ensure single run-scoped execution_id exists
+        session_execution_id = self.db.get_metadata("session_execution_id")
+        if not session_execution_id:
+            session_execution_id = str(uuid.uuid4())
+            self.db.set_metadata("session_execution_id", session_execution_id)
+        
+        for plugin_info in self.plugins:
             try:
-                # Quick eligibility check in parent process (fast, no isolation needed)
-                plugin = plugin_cls()
-                if not plugin.can_parse(vfs):
-                    continue
-
-                logger.info(f"Running Plugin: {plugin.NAME} [Process Isolated]...")
-                
-                execution_id = str(uuid.uuid4())
+                logger.info(f"Running Plugin: {plugin_info.NAME} [Process Isolated]...")
                 start_time = TimeProvider.now_ms()
                 artifacts = []
                 
-                original_hash = self._plugin_hashes.get(plugin.NAME, "UNKNOWN")
-                plugin_filepath = self._plugin_filepaths.get(plugin.NAME)
-                if original_hash != "UNKNOWN" and plugin_filepath:
-                    # Re-hash the exact plugin source file to detect tampering
-                    current_hash = self._hash_plugin_source(plugin_filepath)
-                    if current_hash != original_hash:
-                        logger.critical(f"PLUGIN_SOURCE_TAMPERED: {plugin.NAME} source hash changed!")
+                original_hash = self._plugin_hashes.get(plugin_info.NAME, "UNKNOWN")
+                
+                # Execute in isolated child process
+                try:
+                    mp_context = multiprocessing.get_context("spawn")
+                    result_queue = mp_context.Queue(maxsize=1)
+                    process = mp_context.Process(
+                        target=_plugin_process_entry,
+                        args=(result_queue, plugin_info.module_name, plugin_info.class_name,
+                              source_path, context, self.plugin_dir, original_hash,
+                              plugin_info.filepath),
+                    )
+                    process.start()
+                    try:
+                        ok, payload = result_queue.get(timeout=MAX_WALL_SECONDS)
+                        process.join(timeout=2)
+                        if process.is_alive():
+                            process.terminate()
+                            process.join(timeout=2)
+                        if process.is_alive() and hasattr(process, "kill"):
+                            process.kill()
+                            process.join()
+                        if not ok:
+                            raise RuntimeError(payload)
+                        result = payload
+                    except QueueEmpty as timeout_error:
+                        if process.is_alive():
+                            process.terminate()
+                            process.join(timeout=2)
+                        if process.is_alive() and hasattr(process, "kill"):
+                            process.kill()
+                            process.join()
+                        raise FuturesTimeoutError() from timeout_error
+                    finally:
+                        result_queue.close()
+                    
+                    status = result["status"]
+                    error_msg = result.get("error_msg", "")
+                    
+                    if status == "SKIPPED":
+                        logger.info(f"Plugin {plugin_info.NAME} was skipped (can_parse returned False).")
+                        continue
+                    
+                    if status == "TAMPERED":
+                        logger.critical(f"PLUGIN_SOURCE_TAMPERED: {plugin_info.NAME} source hash changed!")
                         self.db.log_event(
                             "PLUGIN_SOURCE_TAMPERED",
-                            f"{plugin.NAME}: expected={original_hash[:16]}... got={current_hash[:16]}...",
+                            f"{plugin_info.NAME}: expected={original_hash[:16]}...",
                             actor="SYSTEM"
                         )
-                        error_msg = "Plugin source file modified since discovery"
+                        # Write failure to plugin_runs
                         end_time = TimeProvider.now_ms()
                         cursor = self.db._conn.cursor()
                         cursor.execute("""
@@ -277,91 +382,68 @@ class PluginEngine:
                             (execution_id, plugin_name, plugin_source_hash, start_time, end_time, 
                              status, artifacts_count, error_msg)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (execution_id, plugin.NAME, current_hash, start_time, end_time, "TAMPERED", 0, error_msg))
+                        """, (session_execution_id, plugin_info.NAME, original_hash, start_time, end_time, "TAMPERED", 0, error_msg))
                         self.db._conn.commit()
                         continue
-
-                # Get module info for serialization to child process
-                module_name, class_name = self._plugin_module_info.get(
-                    plugin.NAME, (None, None)
-                )
-                
-                if not module_name:
-                    status = "ERROR"
-                    error_msg = f"Plugin {plugin.NAME} module info not found"
-                    logger.error(error_msg)
-                    self.db.log_event("PLUGIN_ERROR", error_msg)
-                else:
-                    try:
-                        # Execute in isolated child process
-                        with ProcessPoolExecutor(
-                            max_workers=1,
-                            mp_context=multiprocessing.get_context("spawn")
-                        ) as executor:
-                            future = executor.submit(
-                                _run_plugin_isolated,
-                                module_name,
-                                class_name,
-                                source_path,
-                                context,
-                                self.plugin_dir
-                            )
-                            result = future.result(timeout=MAX_WALL_SECONDS)
+                    
+                    if status in ("SUCCESS", "PARTIAL", "RESOURCE_LIMIT"):
+                        # Deserialize and validate artifacts
+                        raw_artifacts = _deserialize_artifacts(result["artifacts"])
+                        valid_artifacts, invalid_artifacts = validate_artifact_batch(raw_artifacts)
                         
-                        status = result["status"]
-                        error_msg = result.get("error_msg", "")
-                        
-                        if status == "SKIPPED":
-                            continue  # Plugin declined after deeper inspection
-                        
-                        if status in ("SUCCESS", "PARTIAL", "RESOURCE_LIMIT"):
-                            # Deserialize and validate artifacts
-                            raw_artifacts = _deserialize_artifacts(result["artifacts"])
-                            valid_artifacts, invalid_artifacts = validate_artifact_batch(raw_artifacts)
-                            
-                            if invalid_artifacts:
-                                for inv_art, reason in invalid_artifacts:
-                                    self.db.log_event(
-                                        "ARTIFACT_VALIDATION_FAIL",
-                                        f"Plugin={plugin.NAME} ArtifactID={inv_art.artifact_id}: {reason}",
-                                        actor="SYSTEM"
-                                    )
-                                logger.warning(
-                                    f"Plugin {plugin.NAME}: {len(invalid_artifacts)} artifacts rejected, "
-                                    f"{len(valid_artifacts)} accepted"
+                        if invalid_artifacts:
+                            for inv_art, reason in invalid_artifacts:
+                                self.db.log_event(
+                                    "ARTIFACT_VALIDATION_FAIL",
+                                    f"Plugin={plugin_info.NAME} ArtifactID={inv_art.artifact_id}: {reason}",
+                                    actor="SYSTEM"
                                 )
-                            
-                            artifacts = valid_artifacts
-                            all_artifacts.extend(artifacts)
-                            
-                            # Refine status
-                            if status == "RESOURCE_LIMIT":
-                                error_msg = f"RESOURCE_LIMIT: {error_msg}; {len(artifacts)} artifacts saved before limit"
-                            elif invalid_artifacts:
-                                status = "PARTIAL"
-                                error_msg = f"{len(invalid_artifacts)} artifacts rejected"
-                            
-                            logger.info(
-                                f"Plugin {plugin.NAME} finished. "
-                                f"{len(artifacts)} valid artifacts. "
-                                f"Output: {result.get('cumulative_bytes', 0)} bytes."
+                            logger.warning(
+                                f"Plugin {plugin_info.NAME}: {len(invalid_artifacts)} artifacts rejected, "
+                                f"{len(valid_artifacts)} accepted"
                             )
                         
+                        artifacts = valid_artifacts
+                        all_artifacts.extend(artifacts)
+                        
+                        # Refine status
                         if status == "RESOURCE_LIMIT":
-                            self.db.log_event("PLUGIN_RESOURCE_LIMIT", f"{plugin.NAME}: {error_msg}")
+                            error_msg = f"RESOURCE_LIMIT: {error_msg}; {len(artifacts)} artifacts saved before limit"
+                        elif invalid_artifacts:
+                            status = "PARTIAL"
+                            error_msg = f"{len(invalid_artifacts)} artifacts rejected"
+                        
+                        logger.info(
+                            f"Plugin {plugin_info.NAME} finished. "
+                            f"{len(artifacts)} valid artifacts. "
+                            f"Output: {result.get('cumulative_bytes', 0)} bytes."
+                        )
+                        
+                        # Handle partial failures reported by plugin
+                        plugin_errors = result.get("errors", [])
+                        if plugin_errors:
+                            for err in plugin_errors:
+                                logger.error(f"Plugin {plugin_info.NAME} partial failure: {err}")
+                                self.db.log_event(
+                                    "PLUGIN_PARTIAL_FAILURE",
+                                    f"Plugin={plugin_info.NAME}: {err}",
+                                    actor="SYSTEM"
+                                )
                     
-                    except FuturesTimeoutError:
-                        status = "TIMEOUT"
-                        error_msg = f"Wall-clock timeout ({MAX_WALL_SECONDS}s)"
-                        logger.error(f"Plugin {plugin.NAME} timed out")
-                        self.db.log_event("PLUGIN_TIMEOUT", f"{plugin.NAME}: {error_msg}")
-                    
-                    except Exception as e:
-                        status = "ERROR"
-                        error_msg = str(e)
-                        logger.error(f"Plugin {plugin.NAME} failed: {e}")
-                        traceback.print_exc()
-                        self.db.log_event("PLUGIN_ERROR", f"{plugin.NAME}: {error_msg}")
+                    if status == "RESOURCE_LIMIT":
+                        self.db.log_event("PLUGIN_RESOURCE_LIMIT", f"{plugin_info.NAME}: {error_msg}")
+                
+                except FuturesTimeoutError:
+                    status = "TIMEOUT"
+                    error_msg = f"Wall-clock timeout ({MAX_WALL_SECONDS}s)"
+                    logger.error(f"Plugin {plugin_info.NAME} timed out")
+                    self.db.log_event("PLUGIN_TIMEOUT", f"{plugin_info.NAME}: {error_msg}")
+                
+                except Exception as e:
+                    status = "ERROR"
+                    error_msg = str(e)
+                    logger.error(f"Plugin {plugin_info.NAME} failed: {e}")
+                    self.db.log_event("PLUGIN_ERROR", f"{plugin_info.NAME}: {error_msg}")
                 
                 # Store valid artifacts in database
                 if status in ("SUCCESS", "PARTIAL", "RESOURCE_LIMIT") and artifacts:
@@ -374,12 +456,12 @@ class PluginEngine:
                              plugin_version, timestamp_utc, details, actor)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
-                            execution_id,
+                            session_execution_id,
                             art.artifact_type, 
                             art.source_path, 
                             art.reference_hash, 
-                            plugin.NAME, 
-                            plugin.VERSION, 
+                            plugin_info.NAME, 
+                            plugin_info.VERSION, 
                             art.timestamp_utc,
                             details_json,
                             art.actor
@@ -389,7 +471,6 @@ class PluginEngine:
                 end_time = TimeProvider.now_ms()
                 
                 # Log plugin run with provenance
-                plugin_hash = self._plugin_hashes.get(plugin.NAME, "UNKNOWN")
                 cursor = self.db._conn.cursor()
                 cursor.execute("""
                     INSERT INTO plugin_runs 
@@ -397,7 +478,7 @@ class PluginEngine:
                      status, artifacts_count, error_msg)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    execution_id, plugin.NAME, plugin_hash, 
+                    session_execution_id, plugin_info.NAME, original_hash, 
                     start_time, end_time, status,
                     len(artifacts) if status in ("SUCCESS", "PARTIAL", "RESOURCE_LIMIT") else 0, 
                     error_msg
@@ -405,7 +486,7 @@ class PluginEngine:
                 self.db._conn.commit()
 
             except Exception as e:
-                logger.critical(f"Engine Error running {plugin_cls.NAME}: {e}")
-                self.db.log_event("ENGINE_ERROR", f"{plugin_cls.NAME}: {e}")
+                logger.critical(f"Engine Error running {plugin_info.NAME}: {e}")
+                self.db.log_event("ENGINE_ERROR", f"{plugin_info.NAME}: {e}")
         
         return all_artifacts

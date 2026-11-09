@@ -32,26 +32,39 @@ def hash_file(file_obj: BinaryIO, chunk_size: int = 65536) -> str:
 
 def compute_merkle_root(hashes: List[str]) -> str:
     """
-    Compute Merkle Root for a list of hex hashes.
-    Sorts input for determinism.
+    Compute Merkle Root for a list of hex hashes using domain separation (RFC 6962 style)
+    and avoiding duplicate-last-leaf padding.
     """
     if not hashes:
         return hashlib.sha256(b"EMPTY").hexdigest()
 
-    leaves = sorted(hashes)
+    # Callers provide leaves in their canonical record order. Sorting here
+    # would erase order and path information from evidence manifests.
+    leaves = [hashlib.sha256(b"\x00" + _digest_bytes(h)).digest() for h in hashes]
     current_level = leaves
 
     while len(current_level) > 1:
         next_level = []
         for i in range(0, len(current_level), 2):
-            left = current_level[i]
-            # Duplicate last if odd
-            right = current_level[i + 1] if i + 1 < len(current_level) else left
-            combined = hashlib.sha256((left + right).encode('utf-8')).hexdigest()
+            if i + 1 < len(current_level):
+                left = current_level[i]
+                right = current_level[i + 1]
+                combined = hashlib.sha256(b"\x01" + left + right).digest()
+            else:
+                # Pass up the odd node directly without duplicate padding or re-hashing
+                combined = current_level[i]
             next_level.append(combined)
         current_level = next_level
 
-    return current_level[0]
+    return current_level[0].hex()
+
+
+def _digest_bytes(value: str) -> bytes:
+    try:
+        raw = bytes.fromhex(value)
+        return raw if len(raw) == 32 else value.encode("utf-8")
+    except (ValueError, TypeError):
+        return str(value).encode("utf-8")
 
 
 def hash_artifact(artifact_dict: dict) -> str:
@@ -67,9 +80,7 @@ def compute_system_root(artifact_root: str, log_root: str) -> str:
     Combine artifact Merkle root and log Merkle root into
     a single system root.  system_root = SHA256(artifact_root || log_root)
     """
-    return hashlib.sha256(
-        (artifact_root + log_root).encode('utf-8')
-    ).hexdigest()
+    return hashlib.sha256((artifact_root + log_root).encode('utf-8')).hexdigest()
 
 def verify_ledger_integrity(db_path: str) -> bool:
     """

@@ -36,39 +36,13 @@ class InstalledAppsParser(BasePlugin):
                 content = vfs.read_bytes(path)
                 if fmt == "list":
                     for line in content.decode('utf-8', errors='ignore').splitlines():
-                        parts = line.strip().split()
-                        if len(parts) >= 2:
-                            pkg = parts[0]
-                            uid = parts[1]
-                            artifacts.append(Artifact(
-                                artifact_id=f"app_{pkg}",
-                                artifact_type="INSTALLED_APP",
-                                source_path=path,
-                                timestamp_utc=0,
-                                parser_name=self.NAME,
-                                parser_version=self.VERSION,
-                                actor="DEVICE",
-                                details={
-                                    "package": pkg,
-                                    "uid": uid,
-                                    "data_dir": parts[3] if len(parts) > 3 else "",
-                                },
-                            ))
-                elif fmt == "xml":
-                    with tempfile.NamedTemporaryFile(suffix=".xml", delete=True) as tmp:
-                        tmp.write(content)
-                        tmp.flush()
-                        tree = ET.parse(tmp.name)
-                        xml_root = tree.getroot()
-                        for package in xml_root.findall("package"):
-                            name = package.get("name")
-                            code_path = package.get("codePath", "")
-                            ft = package.get("ft", "")       # first install time
-                            ut = package.get("ut", "")       # update time
-                            version = package.get("version", "")
-                            if name:
+                        try:
+                            parts = line.strip().split()
+                            if len(parts) >= 2:
+                                pkg = parts[0]
+                                uid = parts[1]
                                 artifacts.append(Artifact(
-                                    artifact_id=f"app_{name}",
+                                    artifact_id=f"app_{self.derive_artifact_id('app', pkg)}",
                                     artifact_type="INSTALLED_APP",
                                     source_path=path,
                                     timestamp_utc=0,
@@ -76,14 +50,57 @@ class InstalledAppsParser(BasePlugin):
                                     parser_version=self.VERSION,
                                     actor="DEVICE",
                                     details={
-                                        "package": name,
-                                        "path": code_path,
-                                        "version": version,
-                                        "first_install": ft,
-                                        "last_update": ut,
+                                        "package": pkg,
+                                        "uid": uid,
+                                        "data_dir": parts[3] if len(parts) > 3 else "",
                                     },
                                 ))
+                        except Exception as e:
+                            self.errors.append(f"packages.list row parse failed: {e}")
+                elif fmt == "xml":
+                    # NamedTemporaryFile delete=False for Windows compatibility
+                    temp_file = None
+                    try:
+                        temp_file = tempfile.NamedTemporaryFile(suffix=".xml", delete=False)
+                        temp_file.write(content)
+                        temp_file.close()
+
+                        tree = ET.parse(temp_file.name)
+                        xml_root = tree.getroot()
+                        for package in xml_root.findall("package"):
+                            try:
+                                name = package.get("name")
+                                code_path = package.get("codePath", "")
+                                ft = package.get("ft", "")       # first install time
+                                ut = package.get("ut", "")       # update time
+                                version = package.get("version", "")
+                                if name:
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"app_{self.derive_artifact_id('app', name)}",
+                                        artifact_type="INSTALLED_APP",
+                                        source_path=path,
+                                        timestamp_utc=0,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor="DEVICE",
+                                        details={
+                                            "package": name,
+                                            "path": code_path,
+                                            "version": version,
+                                            "first_install": ft,
+                                            "last_update": ut,
+                                        },
+                                    ))
+                            except Exception as e:
+                                self.errors.append(f"packages.xml package parse failed: {e}")
+                    finally:
+                        if temp_file:
+                            try:
+                                os.unlink(temp_file.name)
+                            except Exception:
+                                pass
             except Exception as e:
-                logger.warning(f"[InstalledAppsParser] Failed to process {path}: {e}")
+                logger.warning(f"Failed to process {path}: {e}")
+                self.errors.append(f"Failed to process {path}: {e}")
 
         return artifacts

@@ -198,6 +198,16 @@ class CaseDatabase:
         """Return the path to the JSONL append-only ledger."""
         return self._ledger_path
 
+    def checkpoint(self):
+        """Flush WAL pages to case.db using checkpoint."""
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            self._conn.commit()
+            logger.info("Database WAL checkpoint completed.")
+        except Exception as e:
+            logger.warning(f"Database checkpoint failed: {e}")
+
     def close(self):
         if self._ledger_file:
             try:

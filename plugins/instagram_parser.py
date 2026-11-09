@@ -3,7 +3,6 @@ Instagram DM Parser Plugin — XtractR Forensic Platform
 Extracts direct messages and user metadata from Android Instagram databases.
 """
 import sqlite3
-import tempfile
 import os
 import json
 import logging
@@ -35,12 +34,7 @@ class InstagramParser(BasePlugin):
 
         for db_path in candidates:
             try:
-                with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as tmp:
-                    tmp.write(vfs.read_bytes(db_path))
-                    tmp.flush()
-
-                    conn = sqlite3.connect(tmp.name)
-                    conn.row_factory = sqlite3.Row
+                with self.open_evidence_db(vfs, db_path) as conn:
                     cursor = conn.cursor()
 
                     tables = {row[0] for row in cursor.execute(
@@ -56,26 +50,30 @@ class InstagramParser(BasePlugin):
                                 FROM messages ORDER BY timestamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timestamp"])
-                                body = row["message"] or ""
-                                msg_type = row["message_type"] or "TEXT"
+                                try:
+                                    ts = self.normalize_timestamp(row["timestamp"])
+                                    body = row["message"] or ""
+                                    msg_type = row["message_type"] or "TEXT"
 
-                                artifacts.append(Artifact(
-                                    artifact_id=f"ig_msg_{row['_id']}",
-                                    artifact_type="INSTAGRAM_MSG",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor=str(row["user_id"] or "unknown"),
-                                    details={
-                                        "body": body[:4096],
-                                        "thread_key": str(row["thread_key"] or ""),
-                                        "message_type": str(msg_type),
-                                    },
-                                ))
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"ig_msg_{row['_id']}",
+                                        artifact_type="INSTAGRAM_MSG",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor=str(row["user_id"] or "unknown"),
+                                        details={
+                                            "body": body[:4096],
+                                            "thread_key": str(row["thread_key"] or ""),
+                                            "message_type": str(msg_type),
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"IG message row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.warning(f"[Instagram] messages query failed on {db_path}: {e}")
+                            logger.warning(f"messages query failed on {db_path}: {e}")
+                            self.errors.append(f"messages query failed on {db_path}: {e}")
 
                     # threads table
                     if "threads" in tables:
@@ -85,26 +83,30 @@ class InstagramParser(BasePlugin):
                                 FROM threads
                             """)
                             for row in cursor.fetchall():
-                                title = row["thread_title"] or ""
-                                artifacts.append(Artifact(
-                                    artifact_id=f"ig_thread_{abs(hash(str(row['thread_key'])))}",
-                                    artifact_type="INSTAGRAM_THREAD",
-                                    source_path=db_path,
-                                    timestamp_utc=0,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor=str(row["admin_user_id"] or "unknown"),
-                                    details={
-                                        "thread_key": str(row["thread_key"]),
-                                        "thread_type": str(row["thread_type"]),
-                                        "title": title,
-                                    },
-                                ))
+                                try:
+                                    title = row["thread_title"] or ""
+                                    t_key = str(row["thread_key"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"ig_thread_{self.derive_artifact_id('ig_t', t_key)}",
+                                        artifact_type="INSTAGRAM_THREAD",
+                                        source_path=db_path,
+                                        timestamp_utc=0,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor=str(row["admin_user_id"] or "unknown"),
+                                        details={
+                                            "thread_key": t_key,
+                                            "thread_type": str(row["thread_type"]),
+                                            "title": title,
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"IG thread row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[Instagram] threads query failed: {e}")
+                            logger.debug(f"threads query failed: {e}")
 
-                    conn.close()
             except Exception as e:
-                logger.warning(f"[Instagram] Failed to process {db_path}: {e}")
+                logger.warning(f"Failed to process {db_path}: {e}")
+                self.errors.append(f"Failed to process {db_path}: {e}")
 
         return artifacts

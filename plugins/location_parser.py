@@ -4,7 +4,6 @@ Extracts location data from Android caches, Google location databases,
 and cell/WiFi location caches.
 """
 import sqlite3
-import tempfile
 import os
 import json
 import logging
@@ -23,12 +22,6 @@ LOCATION_DB_NAMES = {
     "gmm_storage.db",                 # Google Maps offline tiles (has location hints)
     "gmm_myplaces.db",                # Google Maps saved places
     "da_destination_history",          # Samsung driving history
-}
-
-# JSON-based location files
-LOCATION_JSON_NAMES = {
-    "semantic_location_history",
-    "location_history",
 }
 
 
@@ -59,12 +52,7 @@ class LocationParser(BasePlugin):
         for db_path in db_candidates:
             basename = os.path.basename(db_path)
             try:
-                with tempfile.NamedTemporaryFile(suffix=".db", delete=True) as tmp:
-                    tmp.write(vfs.read_bytes(db_path))
-                    tmp.flush()
-
-                    conn = sqlite3.connect(tmp.name)
-                    conn.row_factory = sqlite3.Row
+                with self.open_evidence_db(vfs, db_path) as conn:
                     cursor = conn.cursor()
 
                     tables = {row[0] for row in cursor.execute(
@@ -79,25 +67,28 @@ class LocationParser(BasePlugin):
                                 FROM cache ORDER BY timestamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timestamp"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"loc_cell_{ts}_{abs(hash((row['latitude'], row['longitude'])))}",
-                                    artifact_type="LOCATION",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor="DEVICE",
-                                    details={
-                                        "latitude": row["latitude"],
-                                        "longitude": row["longitude"],
-                                        "accuracy_m": row["accuracy"],
-                                        "confidence": row["confidence"],
-                                        "provider": "CELL_TOWER",
-                                    },
-                                ))
+                                try:
+                                    ts = self.normalize_timestamp(row["timestamp"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"loc_cell_{ts}_{self.derive_artifact_id('loc', row['latitude'], row['longitude'])}",
+                                        artifact_type="LOCATION",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor="DEVICE",
+                                        details={
+                                            "latitude": row["latitude"],
+                                            "longitude": row["longitude"],
+                                            "accuracy_m": row["accuracy"],
+                                            "confidence": row["confidence"],
+                                            "provider": "CELL_TOWER",
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"cache.cell row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[Location] cache.cell query failed: {e}")
+                            logger.debug(f"cache.cell query failed: {e}")
 
                     # Android WiFi cache
                     if basename == "cache.wifi" and "cache" in tables:
@@ -107,24 +98,27 @@ class LocationParser(BasePlugin):
                                 FROM cache ORDER BY timestamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timestamp"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"loc_wifi_{ts}_{abs(hash((row['latitude'], row['longitude'])))}",
-                                    artifact_type="LOCATION",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor="DEVICE",
-                                    details={
-                                        "latitude": row["latitude"],
-                                        "longitude": row["longitude"],
-                                        "accuracy_m": row["accuracy"],
-                                        "provider": "WIFI",
-                                    },
-                                ))
+                                try:
+                                    ts = self.normalize_timestamp(row["timestamp"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"loc_wifi_{ts}_{self.derive_artifact_id('loc', row['latitude'], row['longitude'])}",
+                                        artifact_type="LOCATION",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor="DEVICE",
+                                        details={
+                                            "latitude": row["latitude"],
+                                            "longitude": row["longitude"],
+                                            "accuracy_m": row["accuracy"],
+                                            "provider": "WIFI",
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"cache.wifi row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[Location] cache.wifi query failed: {e}")
+                            logger.debug(f"cache.wifi query failed: {e}")
 
                     # Samsung driving/destination history
                     if basename == "da_destination_history" and "history" in tables:
@@ -134,25 +128,28 @@ class LocationParser(BasePlugin):
                                 FROM history ORDER BY timestamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timestamp"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"loc_dest_{ts}",
-                                    artifact_type="LOCATION",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor="DEVICE",
-                                    details={
-                                        "latitude": row["latitude"],
-                                        "longitude": row["longitude"],
-                                        "name": row["name"] or "",
-                                        "address": row["address"] or "",
-                                        "provider": "DESTINATION_HISTORY",
-                                    },
-                                ))
+                                try:
+                                    ts = self.normalize_timestamp(row["timestamp"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"loc_dest_{ts}",
+                                        artifact_type="LOCATION",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor="DEVICE",
+                                        details={
+                                            "latitude": row["latitude"],
+                                            "longitude": row["longitude"],
+                                            "name": row["name"] or "",
+                                            "address": row["address"] or "",
+                                            "provider": "DESTINATION_HISTORY",
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"da_destination_history row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[Location] destination history query failed: {e}")
+                            logger.debug(f"destination history query failed: {e}")
 
                     # Google Maps saved places (gmm_myplaces.db)
                     if "sync_item" in tables:
@@ -162,24 +159,27 @@ class LocationParser(BasePlugin):
                                 FROM sync_item ORDER BY timestamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timestamp"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"loc_place_{ts}_{abs(hash(row['title'] or ''))}",
-                                    artifact_type="SAVED_PLACE",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor="DEVICE",
-                                    details={
-                                        "title": row["title"] or "",
-                                        "latitude": row["latitude"],
-                                        "longitude": row["longitude"],
-                                        "provider": "GOOGLE_MAPS",
-                                    },
-                                ))
+                                try:
+                                    ts = self.normalize_timestamp(row["timestamp"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"loc_place_{ts}_{self.derive_artifact_id('loc', row['title'] or '')}",
+                                        artifact_type="SAVED_PLACE",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor="DEVICE",
+                                        details={
+                                            "title": row["title"] or "",
+                                            "latitude": row["latitude"],
+                                            "longitude": row["longitude"],
+                                            "provider": "GOOGLE_MAPS",
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"sync_item row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[Location] sync_item query failed: {e}")
+                            logger.debug(f"sync_item query failed: {e}")
 
                     # CachedGeoposition.db (WebView)
                     if "CachedPosition" in tables:
@@ -189,28 +189,31 @@ class LocationParser(BasePlugin):
                                 FROM CachedPosition ORDER BY timestamp ASC
                             """)
                             for row in cursor.fetchall():
-                                ts = self.normalize_timestamp(row["timestamp"])
-                                artifacts.append(Artifact(
-                                    artifact_id=f"loc_geo_{ts}",
-                                    artifact_type="LOCATION",
-                                    source_path=db_path,
-                                    timestamp_utc=ts,
-                                    parser_name=self.NAME,
-                                    parser_version=self.VERSION,
-                                    actor="DEVICE",
-                                    details={
-                                        "latitude": row["latitude"],
-                                        "longitude": row["longitude"],
-                                        "accuracy_m": row["accuracy"],
-                                        "provider": "WEBVIEW_GEO",
-                                    },
-                                ))
+                                try:
+                                    ts = self.normalize_timestamp(row["timestamp"])
+                                    artifacts.append(Artifact(
+                                        artifact_id=f"loc_geo_{ts}",
+                                        artifact_type="LOCATION",
+                                        source_path=db_path,
+                                        timestamp_utc=ts,
+                                        parser_name=self.NAME,
+                                        parser_version=self.VERSION,
+                                        actor="DEVICE",
+                                        details={
+                                            "latitude": row["latitude"],
+                                            "longitude": row["longitude"],
+                                            "accuracy_m": row["accuracy"],
+                                            "provider": "WEBVIEW_GEO",
+                                        },
+                                    ))
+                                except Exception as e:
+                                    self.errors.append(f"CachedPosition row parse failed: {e}")
                         except sqlite3.OperationalError as e:
-                            logger.debug(f"[Location] CachedPosition query failed: {e}")
+                            logger.debug(f"CachedPosition query failed: {e}")
 
-                    conn.close()
             except Exception as e:
-                logger.warning(f"[Location] Failed to process {db_path}: {e}")
+                logger.warning(f"Failed to process {db_path}: {e}")
+                self.errors.append(f"Failed to process {db_path}: {e}")
 
         # ── JSON location files ───────────────────────────────────────────────
         for json_path in json_candidates:
@@ -226,35 +229,39 @@ class LocationParser(BasePlugin):
                     locations = data
 
                 for loc in locations[:10000]:  # Cap at 10k to avoid resource exhaustion
-                    if isinstance(loc, dict):
-                        lat = loc.get("latitudeE7", loc.get("latitude"))
-                        lng = loc.get("longitudeE7", loc.get("longitude"))
-                        ts_str = loc.get("timestampMs", loc.get("timestamp", "0"))
+                    try:
+                        if isinstance(loc, dict):
+                            lat = loc.get("latitudeE7", loc.get("latitude"))
+                            lng = loc.get("longitudeE7", loc.get("longitude"))
+                            ts_str = loc.get("timestampMs", loc.get("timestamp", "0"))
 
-                        if lat is not None and lng is not None:
-                            # E7 format: divide by 1e7
-                            if isinstance(lat, int) and abs(lat) > 1_000_000:
-                                lat = lat / 1e7
-                                lng = lng / 1e7
+                            if lat is not None and lng is not None:
+                                # E7 format: divide by 1e7
+                                if isinstance(lat, int) and abs(lat) > 1_000_000:
+                                    lat = lat / 1e7
+                                    lng = lng / 1e7
 
-                            ts = self.normalize_timestamp(ts_str)
+                                ts = self.normalize_timestamp(ts_str)
 
-                            artifacts.append(Artifact(
-                                artifact_id=f"loc_json_{ts}_{abs(hash((lat, lng)))}",
-                                artifact_type="LOCATION",
-                                source_path=json_path,
-                                timestamp_utc=ts,
-                                parser_name=self.NAME,
-                                parser_version=self.VERSION,
-                                actor="DEVICE",
-                                details={
-                                    "latitude": lat,
-                                    "longitude": lng,
-                                    "accuracy_m": loc.get("accuracy", ""),
-                                    "provider": "GOOGLE_LOCATION_HISTORY",
-                                },
-                            ))
+                                artifacts.append(Artifact(
+                                    artifact_id=f"loc_json_{ts}_{self.derive_artifact_id('loc', lat, lng)}",
+                                    artifact_type="LOCATION",
+                                    source_path=json_path,
+                                    timestamp_utc=ts,
+                                    parser_name=self.NAME,
+                                    parser_version=self.VERSION,
+                                    actor="DEVICE",
+                                    details={
+                                        "latitude": lat,
+                                        "longitude": lng,
+                                        "accuracy_m": loc.get("accuracy", ""),
+                                        "provider": "GOOGLE_LOCATION_HISTORY",
+                                    },
+                                ))
+                    except Exception as e:
+                        self.errors.append(f"JSON location item parse failed: {e}")
             except Exception as e:
-                logger.warning(f"[Location] Failed to parse JSON {json_path}: {e}")
+                logger.warning(f"Failed to parse JSON {json_path}: {e}")
+                self.errors.append(f"Failed to parse JSON {json_path}: {e}")
 
         return artifacts

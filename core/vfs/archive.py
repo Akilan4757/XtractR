@@ -99,6 +99,23 @@ class ArchiveVFS(BaseVFS):
             raise PermissionError(f"Write access forbidden in VFS: {path}")
         
         path = self._normalize_path(path)
+        
+        # Guard against decompression bomb / CPU exhaustion: check size limits before extraction
+        stat_info = self.stat(path)
+        file_size = stat_info.get("size", 0)
+        
+        max_file = getattr(self, "max_file_size", 100 * 1024 * 1024) # 100MB default
+        if file_size > max_file:
+            raise ValueError(f"File size {file_size} exceeds max_file_size limit ({max_file})")
+            
+        if not hasattr(self, "cumulative_read_bytes"):
+            self.cumulative_read_bytes = 0
+        max_cum = getattr(self, "max_cumulative_bytes", 500 * 1024 * 1024) # 500MB default
+        if self.cumulative_read_bytes + file_size > max_cum:
+            raise ValueError(f"MAX_CUMULATIVE_BYTES exceeded ({max_cum})")
+            
+        self.cumulative_read_bytes += file_size
+
         try:
             if self.type == "zip":
                 return self._handle.open(path, 'r')
@@ -115,11 +132,16 @@ class ArchiveVFS(BaseVFS):
         try:
             if self.type == "zip":
                 info = self._handle.getinfo(path)
-                # ZipInfo.date_time is tuple (YYYY, M, D, H, M, S)
-                # No easy epoch conversion without datetime, returning mock for now or 0
+                import datetime
+                import calendar
+                try:
+                    dt = datetime.datetime(*info.date_time)
+                    mtime = calendar.timegm(dt.utctimetuple())
+                except Exception:
+                    mtime = 0
                 return {
                     "size": info.file_size,
-                    "mtime": 0, # TODO: Convert date_time to epoch
+                    "mtime": mtime,
                     "mode": 0o444
                 }
             elif self.type == "tar":
